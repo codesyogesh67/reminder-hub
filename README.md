@@ -34,3 +34,29 @@ You can check out [the Next.js GitHub repository](https://github.com/vercel/next
 The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
 
 Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+
+solving typescript jsx: react-jsx problem::::
+
+Reload VS Code
+
+Close the VS Code window for this project.
+
+Open it again, but only this project folder.
+
+Restart TypeScript in VS Code
+
+Cmd+Shift+P → TypeScript: Restart TS Server
+
+(Optional but nice) Cmd+Shift+P → Developer: Reload Window
+
+Check it’s using workspace TS
+
+Open any .tsx file in the new app (e.g. app/page.tsx).
+
+Cmd+Shift+P → TypeScript: Select TypeScript Version
+
+You should now see something like:
+
+Using workspace TypeScript version X.X.X (…/your-app/node_modules/typescript/lib)
+
+If there’s a button “Use Workspace Version”, click it.
