@@ -1,62 +1,100 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+📘 Reminder Hub
 
-## Getting Started
+A modern, minimal, daily reminder system built with Next.js + shadcn/ui.
 
-First, run the development server:
+Reminder Hub is a clean, fast, and personal “daily system” app that helps you stay organized.
+Capture reminders instantly, organize them into custom areas, filter by views, and plan your day with clarity.
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
-```
+Designed for both desktop & mobile — with a dynamic sidebar, quick-add bar, and beautiful cards powered by shadcn/ui.
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+✨ Features
+🧠 Smart Reminders
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+Add reminders via Quick Add (press Enter)
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+Full “New Reminder” dialog with:
 
-## Learn More
+Title, note
 
-To learn more about Next.js, take a look at the following resources:
+Area selection
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+Due date
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+Frequency (once/daily/weekly/monthly/custom)
 
-## Deploy on Vercel
+Priority (low/medium/high)
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+🗂 Custom Areas
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+Built-in areas (Health, Coding, Family, Money, Other)
 
-solving typescript jsx: react-jsx problem::::
+Create your own custom areas from the sidebar (e.g., “Work”, “Gym”, “Finance”, “Travel”, etc.)
 
-Reload VS Code
+Areas persist during session (DB coming soon)
 
-Close the VS Code window for this project.
+🔎 Smart Views
 
-Open it again, but only this project folder.
+Today — reminders due today
 
-Restart TypeScript in VS Code
+Upcoming — anything due in the future
 
-Cmd+Shift+P → TypeScript: Restart TS Server
+All reminders — full overview
 
-(Optional but nice) Cmd+Shift+P → Developer: Reload Window
+Combine views with filters:
 
-Check it’s using workspace TS
+Status: pending / done / snoozed
 
-Open any .tsx file in the new app (e.g. app/page.tsx).
+Priority: low / medium / high
 
-Cmd+Shift+P → TypeScript: Select TypeScript Version
+📱 Mobile-Ready UI
 
-You should now see something like:
+Beautiful mobile layout
 
-Using workspace TypeScript version X.X.X (…/your-app/node_modules/typescript/lib)
+Left slide-in drawer using shadcn Sheet
 
-If there’s a button “Use Workspace Version”, click it.
+Quick area switching + add area from mobile
+
+💅 Beautiful UI (shadcn/ui)
+
+Dialog
+
+Input
+
+Button
+
+Sheet
+
+Select
+
+Date picker (optional)
+
+All styled with Tailwind + dark UI
+
+🧱 Tech Stack
+Layer	Tech
+Frontend	Next.js 14, React Server Components
+Styling	Tailwind CSS, shadcn/ui
+State	Custom React Context Store (ReminderProvider)
+Icons	lucide-react
+Future DB	PostgreSQL + Prisma (coming soon)
+
+📁 Project Structure
+
+app/
+  layout.tsx
+  page.tsx
+  globals.css
+
+components/
+  layout/
+    navbar.tsx
+    sidebar.tsx
+    mobile-sidebar.tsx
+  reminders/
+    reminder-card.tsx
+    filter-pill-group.tsx
+    new-reminder-dialog.tsx
+    reminder-store.tsx
+
+lib/
+  reminder.ts
