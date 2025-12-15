@@ -1,0 +1,52 @@
+// prisma/schema.prisma
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id        String   @id
+  email     String?  @unique
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  areas     Area[]
+  reminders Reminder[]
+}
+
+model Area {
+  id     String @id @default(cuid())
+  name   String
+  user   User   @relation(fields: [userId], references: [id])
+  userId String
+
+  createdAt DateTime   @default(now())
+  reminders Reminder[]
+}
+
+model Reminder {
+  id     String @id @default(cuid())
+  user   User   @relation(fields: [userId], references: [id])
+  userId String
+
+  area   Area?   @relation(fields: [areaId], references: [id])
+  areaId String?
+
+  title     String
+  note      String?
+  dueAt     DateTime
+  frequency String // once/daily/weekly/monthly/custom
+  priority  String // low/medium/high
+  status    String // pending/done/snoozed
+
+  createdAt   DateTime  @default(now())
+  completedAt DateTime?
+
+  @@index([userId])
+  @@index([areaId])
+}
