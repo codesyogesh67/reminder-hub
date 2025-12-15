@@ -16,6 +16,7 @@ import {
   SheetTrigger,
 } from "@/components/ui/sheet";
 import { Menu } from "lucide-react";
+import { CleanupSettings } from "@/components/reminders/cleanup-settings";
 
 const viewLabels: { key: View; label: string }[] = [
   { key: "today", label: "Today" },
@@ -40,7 +41,6 @@ export function MobileSidebar() {
 
   function handleViewClick(nextView: View) {
     setView(nextView);
-    // optional: close on choose
     setOpen(false);
   }
 
@@ -68,9 +68,9 @@ export function MobileSidebar() {
 
       <SheetContent
         side="left"
-        className="w-72 border-slate-800 bg-slate-950 text-slate-50"
+        className="flex w-72 flex-col gap-4 border-slate-800 bg-slate-950 text-slate-50"
       >
-        <SheetHeader className="mb-4">
+        <SheetHeader className="mb-1">
           <SheetTitle className="flex items-center gap-2 text-base">
             <span className="inline-flex h-7 w-7 items-center justify-center rounded-xl bg-sky-500 text-xs font-bold text-slate-950">
               RH
@@ -79,7 +79,9 @@ export function MobileSidebar() {
           </SheetTitle>
         </SheetHeader>
 
-        <div className="flex flex-col gap-4 text-sm">
+        {/* Scrollable content */}
+        <div className="px-2 flex-1 space-y-4 overflow-y-auto pb-4">
+          {/* Views */}
           <div>
             <p className="mb-2 text-xs font-semibold uppercase text-slate-400">
               Views
@@ -106,6 +108,7 @@ export function MobileSidebar() {
             </div>
           </div>
 
+          {/* Areas */}
           <div>
             <p className="mb-2 text-xs font-semibold uppercase text-slate-400">
               Areas
@@ -113,7 +116,10 @@ export function MobileSidebar() {
 
             <button
               type="button"
-              onClick={setAllAreas}
+              onClick={() => {
+                setAllAreas();
+                setOpen(false);
+              }}
               className={[
                 "mb-1 w-full rounded-lg px-2 py-1.5 text-left text-xs font-semibold uppercase tracking-[0.18em]",
                 filters.area === "all"
@@ -168,6 +174,9 @@ export function MobileSidebar() {
               </div>
             </form>
           </div>
+
+          {/* Auto-cleanup settings (same as desktop) */}
+          <CleanupSettings />
         </div>
       </SheetContent>
     </Sheet>

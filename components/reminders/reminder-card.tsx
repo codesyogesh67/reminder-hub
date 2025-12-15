@@ -1,7 +1,14 @@
 // components/reminders/reminder-card.tsx
 
 import type { Reminder, Priority } from "@/lib/reminder";
-import { Clock, RefreshCw, Flag, CheckCircle2, Circle } from "lucide-react";
+import {
+  Clock,
+  RefreshCw,
+  Flag,
+  CheckCircle2,
+  Circle,
+  Trash2,
+} from "lucide-react";
 import { useReminderStore } from "@/components/reminders/reminder-store";
 
 const PRIORITY_LABELS: Record<Priority, string> = {
@@ -11,7 +18,7 @@ const PRIORITY_LABELS: Record<Priority, string> = {
 };
 
 export function ReminderCard({ reminder }: { reminder: Reminder }) {
-  const { toggleReminderStatus } = useReminderStore();
+  const { toggleReminderStatus, deleteReminder } = useReminderStore();
 
   const due = new Date(reminder.dueAt);
 
@@ -57,6 +64,7 @@ export function ReminderCard({ reminder }: { reminder: Reminder }) {
         >
           {statusIcon}
         </button>
+
         <div className="flex-1">
           <p className={titleClasses}>{reminder.title}</p>
           {reminder.note && (
@@ -65,6 +73,16 @@ export function ReminderCard({ reminder }: { reminder: Reminder }) {
             </p>
           )}
         </div>
+
+        {/* Delete button */}
+        <button
+          type="button"
+          onClick={() => deleteReminder(reminder.id)}
+          className="ml-1 rounded-full border border-transparent p-1 text-slate-500 opacity-0 transition group-hover:opacity-100 hover:border-rose-500/60 hover:bg-rose-950/30 hover:text-rose-400"
+          aria-label="Delete reminder"
+        >
+          <Trash2 className="h-4 w-4" />
+        </button>
       </div>
 
       <div className="mt-auto flex items-center justify-between pt-2 text-[11px] text-slate-400">

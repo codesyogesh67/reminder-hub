@@ -8,6 +8,8 @@ import {
 } from "@/components/reminders/reminder-store";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { CleanupSettings } from "@/components/reminders/cleanup-settings";
+
 
 const viewLabels: { key: View; label: string }[] = [
   { key: "today", label: "Today" },
@@ -131,6 +133,9 @@ export default function Sidebar() {
             </Button>
           </div>
         </form>
+
+             {/* Auto-cleanup setting */}
+             <CleanupSettings />
       </nav>
     </aside>
   );

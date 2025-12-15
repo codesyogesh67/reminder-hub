@@ -33,15 +33,24 @@ export type AreaDefinition = {
   label: string;
 };
 
+export type ReminderSettings = {
+  autoDeleteCompletedAfterDays: number | null; // null = never auto-delete
+};
+
 type ReminderStoreValue = {
   // data
   reminders: Reminder[];
   areas: AreaDefinition[];
+  settings: ReminderSettings;
 
   // actions
   addReminder: (input: ReminderInput) => void;
   toggleReminderStatus: (id: string) => void;
+  deleteReminder: (id: string) => void;
   addArea: (label: string) => Area; // returns new area id
+
+  // settings
+  setSettings: (updater: (prev: ReminderSettings) => ReminderSettings) => void;
 
   // view / filters
   view: View;
@@ -56,11 +65,29 @@ const ReminderStoreContext = createContext<ReminderStoreValue | null>(null);
 
 // helper to slugify area id
 function toAreaId(label: string): Area {
-  return label
-    .trim()
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-+|-+$/g, "") || "area";
+  return (
+    label
+      .trim()
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/^-+|-+$/g, "") || "area"
+  );
+}
+
+function applyAutoDelete(
+  list: Reminder[],
+  autoDeleteCompletedAfterDays: number | null
+): Reminder[] {
+  if (autoDeleteCompletedAfterDays == null) return list;
+
+  const now = Date.now();
+  const cutoffMs = autoDeleteCompletedAfterDays * 24 * 60 * 60 * 1000;
+
+  return list.filter((r) => {
+    if (r.status !== "done" || !r.completedAt) return true;
+    const completedTime = new Date(r.completedAt).getTime();
+    return now - completedTime <= cutoffMs;
+  });
 }
 
 // Initial areas
@@ -84,6 +111,7 @@ const INITIAL_REMINDERS: Reminder[] = [
     priority: "medium",
     status: "pending",
     createdAt: new Date().toISOString(),
+    completedAt: null,
   },
   {
     id: "2",
@@ -97,6 +125,7 @@ const INITIAL_REMINDERS: Reminder[] = [
     priority: "high",
     status: "pending",
     createdAt: new Date().toISOString(),
+    completedAt: null,
   },
   {
     id: "3",
@@ -108,6 +137,7 @@ const INITIAL_REMINDERS: Reminder[] = [
     priority: "high",
     status: "pending",
     createdAt: new Date().toISOString(),
+    completedAt: null,
   },
   {
     id: "4",
@@ -121,6 +151,7 @@ const INITIAL_REMINDERS: Reminder[] = [
     priority: "medium",
     status: "pending",
     createdAt: new Date().toISOString(),
+    completedAt: null,
   },
   {
     id: "5",
@@ -132,12 +163,17 @@ const INITIAL_REMINDERS: Reminder[] = [
     priority: "low",
     status: "pending",
     createdAt: new Date().toISOString(),
+    completedAt: null,
   },
 ];
 
 export function ReminderProvider({ children }: { children: ReactNode }) {
   const [reminders, setReminders] = useState<Reminder[]>(INITIAL_REMINDERS);
   const [areas, setAreas] = useState<AreaDefinition[]>(INITIAL_AREAS);
+
+  const [settings, setSettingsState] = useState<ReminderSettings>({
+    autoDeleteCompletedAfterDays: 7, // default: 1 week
+  });
 
   const [view, setView] = useState<View>("today");
 
@@ -147,39 +183,60 @@ export function ReminderProvider({ children }: { children: ReactNode }) {
     priority: "all",
   });
 
-  const addReminder = useCallback((input: ReminderInput) => {
-    const now = new Date().toISOString();
-    const id =
-      typeof crypto !== "undefined" && "randomUUID" in crypto
-        ? crypto.randomUUID()
-        : `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+  const addReminder = useCallback(
+    (input: ReminderInput) => {
+      const nowIso = new Date().toISOString();
+      const id =
+        typeof crypto !== "undefined" && "randomUUID" in crypto
+          ? crypto.randomUUID()
+          : `${Date.now()}-${Math.random().toString(16).slice(2)}`;
 
-    const reminder: Reminder = {
-      id,
-      title: input.title,
-      note: input.note ?? "",
-      area: input.area,
-      dueAt: input.dueAt,
-      frequency: input.frequency,
-      priority: input.priority,
-      status: input.status ?? "pending",
-      createdAt: now,
-    };
+      const isDone = input.status === "done";
 
-    setReminders((prev) => [reminder, ...prev]);
-  }, []);
+      const reminder: Reminder = {
+        id,
+        title: input.title,
+        note: input.note ?? "",
+        area: input.area,
+        dueAt: input.dueAt,
+        frequency: input.frequency,
+        priority: input.priority,
+        status: input.status ?? "pending",
+        createdAt: nowIso,
+        completedAt: isDone ? nowIso : null,
+      };
 
-  const toggleReminderStatus = useCallback((id: string) => {
-    setReminders((prev) =>
-      prev.map((r) =>
-        r.id === id
-          ? {
-              ...r,
-              status: r.status === "done" ? "pending" : "done",
-            }
-          : r
-      )
-    );
+      setReminders((prev) =>
+        applyAutoDelete([reminder, ...prev], settings.autoDeleteCompletedAfterDays)
+      );
+    },
+    [settings.autoDeleteCompletedAfterDays]
+  );
+
+  const toggleReminderStatus = useCallback(
+    (id: string) => {
+      const nowIso = new Date().toISOString();
+      setReminders((prev) => {
+        const updated = prev.map((r) => {
+          if (r.id !== id) return r;
+          const nextStatus = r.status === "done" ? "pending" : "done";
+          return {
+            ...r,
+            status: nextStatus,
+            completedAt: nextStatus === "done" ? nowIso : null,
+          };
+        });
+        return applyAutoDelete(
+          updated,
+          settings.autoDeleteCompletedAfterDays
+        );
+      });
+    },
+    [settings.autoDeleteCompletedAfterDays]
+  );
+
+  const deleteReminder = useCallback((id: string) => {
+    setReminders((prev) => prev.filter((r) => r.id !== id));
   }, []);
 
   const setFilters = useCallback(
@@ -219,13 +276,30 @@ export function ReminderProvider({ children }: { children: ReactNode }) {
     [areas]
   );
 
+  const setSettings = useCallback(
+    (updater: (prev: ReminderSettings) => ReminderSettings) => {
+      setSettingsState((prev) => {
+        const next = updater(prev);
+        // re-apply cleanup with new setting
+        setReminders((current) =>
+          applyAutoDelete(current, next.autoDeleteCompletedAfterDays)
+        );
+        return next;
+      });
+    },
+    []
+  );
+
   const value = useMemo(
     () => ({
       reminders,
       areas,
+      settings,
       addReminder,
       toggleReminderStatus,
+      deleteReminder,
       addArea,
+      setSettings,
       view,
       setView,
       filters,
@@ -235,9 +309,12 @@ export function ReminderProvider({ children }: { children: ReactNode }) {
     [
       reminders,
       areas,
+      settings,
       addReminder,
       toggleReminderStatus,
+      deleteReminder,
       addArea,
+      setSettings,
       view,
       setView,
       filters,
