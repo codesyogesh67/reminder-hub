@@ -5,6 +5,7 @@ import {
   createContext,
   useCallback,
   useContext,
+  useEffect,
   useMemo,
   useState,
   type ReactNode,
@@ -44,10 +45,10 @@ type ReminderStoreValue = {
   settings: ReminderSettings;
 
   // actions
-  addReminder: (input: ReminderInput) => void;
-  toggleReminderStatus: (id: string) => void;
-  deleteReminder: (id: string) => void;
-  addArea: (label: string) => Area; // returns new area id
+  addReminder: (input: ReminderInput) => Promise<void>;
+  toggleReminderStatus: (id: string) => Promise<void>;
+  deleteReminder: (id: string) => Promise<void>;
+  addArea: (label: string) => Area; // returns new area id (UI-only for now)
 
   // settings
   setSettings: (updater: (prev: ReminderSettings) => ReminderSettings) => void;
@@ -59,11 +60,14 @@ type ReminderStoreValue = {
   filters: Filters;
   setFilters: (updater: (prev: Filters) => Filters) => void;
   setAreaFilter: (area: AreaFilter) => void;
+
+  // helpers
+  refetchReminders: () => Promise<void>;
 };
 
 const ReminderStoreContext = createContext<ReminderStoreValue | null>(null);
 
-// helper to slugify area id
+// helper to slugify area id (UI-only for now)
 function toAreaId(label: string): Area {
   return (
     label
@@ -90,7 +94,7 @@ function applyAutoDelete(
   });
 }
 
-// Initial areas
+// UI-only areas for now (we'll move to DB next)
 const INITIAL_AREAS: AreaDefinition[] = [
   { id: "health", label: "Health" },
   { id: "coding", label: "Coding" },
@@ -99,80 +103,39 @@ const INITIAL_AREAS: AreaDefinition[] = [
   { id: "other", label: "Other" },
 ];
 
-// Initial mock reminders (in-memory only)
-const INITIAL_REMINDERS: Reminder[] = [
-  {
-    id: "1",
-    title: "Drink 500ml water",
-    note: "Right after waking up.",
-    area: "health",
-    dueAt: new Date().toISOString(),
-    frequency: "daily",
-    priority: "medium",
-    status: "pending",
-    createdAt: new Date().toISOString(),
-    completedAt: null,
-  },
-  {
-    id: "2",
-    title: "45 min coding session",
-    note: "Reminder Hub UI polish.",
-    area: "coding",
-    dueAt: new Date(
-      new Date().setHours(new Date().getHours() + 2)
-    ).toISOString(),
-    frequency: "daily",
-    priority: "high",
-    status: "pending",
-    createdAt: new Date().toISOString(),
-    completedAt: null,
-  },
-  {
-    id: "3",
-    title: "Call parents",
-    note: "Ask about their week and health.",
-    area: "family",
-    dueAt: new Date(new Date().setHours(21, 0, 0, 0)).toISOString(),
-    frequency: "weekly",
-    priority: "high",
-    status: "pending",
-    createdAt: new Date().toISOString(),
-    completedAt: null,
-  },
-  {
-    id: "4",
-    title: "Review expenses",
-    note: "Update Notion & check subscriptions.",
-    area: "money",
-    dueAt: new Date(
-      new Date().setDate(new Date().getDate() + 1)
-    ).toISOString(),
-    frequency: "weekly",
-    priority: "medium",
-    status: "pending",
-    createdAt: new Date().toISOString(),
-    completedAt: null,
-  },
-  {
-    id: "5",
-    title: "Read 10 pages",
-    note: "Continue ‘Why We Sleep’.",
-    area: "other",
-    dueAt: new Date(new Date().setHours(23, 0, 0, 0)).toISOString(),
-    frequency: "daily",
-    priority: "low",
-    status: "pending",
-    createdAt: new Date().toISOString(),
-    completedAt: null,
-  },
-];
+// Map API reminder -> UI Reminder (handles Date objects/strings safely)
+function normalizeReminder(r: any): Reminder {
+  return {
+    id: String(r.id),
+    title: String(r.title),
+    note: r.note ?? "",
+    // Your API might return areaId + area.name; for now keep area string if present
+    // If you return `area` as string from API, this will use it
+    area: (r.area ?? r.areaId ?? "other") as Area,
+    dueAt: typeof r.dueAt === "string" ? r.dueAt : new Date(r.dueAt).toISOString(),
+    frequency: String(r.frequency),
+    priority: String(r.priority) as Priority,
+    status: String(r.status) as Status,
+    createdAt:
+      typeof r.createdAt === "string"
+        ? r.createdAt
+        : new Date(r.createdAt).toISOString(),
+    completedAt:
+      r.completedAt == null
+        ? null
+        : typeof r.completedAt === "string"
+        ? r.completedAt
+        : new Date(r.completedAt).toISOString(),
+  };
+}
 
 export function ReminderProvider({ children }: { children: ReactNode }) {
-  const [reminders, setReminders] = useState<Reminder[]>(INITIAL_REMINDERS);
+  // ✅ Start empty: DB is source of truth
+  const [reminders, setReminders] = useState<Reminder[]>([]);
   const [areas, setAreas] = useState<AreaDefinition[]>(INITIAL_AREAS);
 
   const [settings, setSettingsState] = useState<ReminderSettings>({
-    autoDeleteCompletedAfterDays: 7, // default: 1 week
+    autoDeleteCompletedAfterDays: 7,
   });
 
   const [view, setView] = useState<View>("today");
@@ -183,40 +146,62 @@ export function ReminderProvider({ children }: { children: ReactNode }) {
     priority: "all",
   });
 
+  const refetchReminders = useCallback(async () => {
+    const res = await fetch("/api/reminders", { cache: "no-store" });
+    if (!res.ok) {
+      console.error("Failed to fetch reminders");
+      return;
+    }
+    const data = await res.json();
+    const normalized = (data.reminders ?? []).map(normalizeReminder);
+    setReminders(applyAutoDelete(normalized, settings.autoDeleteCompletedAfterDays));
+  }, [settings.autoDeleteCompletedAfterDays]);
+
+  // ✅ Load from DB on first mount
+  useEffect(() => {
+    refetchReminders();
+  }, [refetchReminders]);
+
   const addReminder = useCallback(
-    (input: ReminderInput) => {
-      const nowIso = new Date().toISOString();
-      const id =
-        typeof crypto !== "undefined" && "randomUUID" in crypto
-          ? crypto.randomUUID()
-          : `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+    async (input: ReminderInput) => {
+      // POST to DB
+      const res = await fetch("/api/reminders", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          title: input.title,
+          note: input.note ?? null,
+          // For now: store UI area as string in API if you designed it that way.
+          // If your DB model uses areaId, later we’ll map area -> areaId.
+          area: input.area,
+          dueAt: input.dueAt,
+          frequency: input.frequency,
+          priority: input.priority,
+          status: input.status ?? "pending",
+        }),
+      });
 
-      const isDone = input.status === "done";
+      if (!res.ok) {
+        console.error("Failed to create reminder");
+        return;
+      }
 
-      const reminder: Reminder = {
-        id,
-        title: input.title,
-        note: input.note ?? "",
-        area: input.area,
-        dueAt: input.dueAt,
-        frequency: input.frequency,
-        priority: input.priority,
-        status: input.status ?? "pending",
-        createdAt: nowIso,
-        completedAt: isDone ? nowIso : null,
-      };
+      const data = await res.json();
+      const created = normalizeReminder(data.reminder);
 
+      // Update UI immediately
       setReminders((prev) =>
-        applyAutoDelete([reminder, ...prev], settings.autoDeleteCompletedAfterDays)
+        applyAutoDelete([created, ...prev], settings.autoDeleteCompletedAfterDays)
       );
     },
     [settings.autoDeleteCompletedAfterDays]
   );
 
   const toggleReminderStatus = useCallback(
-    (id: string) => {
-      const nowIso = new Date().toISOString();
+    async (id: string) => {
+      // optimistic update
       setReminders((prev) => {
+        const nowIso = new Date().toISOString();
         const updated = prev.map((r) => {
           if (r.id !== id) return r;
           const nextStatus = r.status === "done" ? "pending" : "done";
@@ -226,18 +211,42 @@ export function ReminderProvider({ children }: { children: ReactNode }) {
             completedAt: nextStatus === "done" ? nowIso : null,
           };
         });
-        return applyAutoDelete(
-          updated,
-          settings.autoDeleteCompletedAfterDays
-        );
+        return applyAutoDelete(updated, settings.autoDeleteCompletedAfterDays);
       });
+
+      const res = await fetch(`/api/reminders/${id}`, { method: "PATCH" });
+      if (!res.ok) {
+        // fallback to server truth
+        await refetchReminders();
+      } else {
+        const data = await res.json();
+        if (data?.reminder) {
+          const updated = normalizeReminder(data.reminder);
+          setReminders((prev) => {
+            const merged = prev.map((r) => (r.id === id ? updated : r));
+            return applyAutoDelete(merged, settings.autoDeleteCompletedAfterDays);
+          });
+        }
+      }
     },
-    [settings.autoDeleteCompletedAfterDays]
+    [refetchReminders, settings.autoDeleteCompletedAfterDays]
   );
 
-  const deleteReminder = useCallback((id: string) => {
-    setReminders((prev) => prev.filter((r) => r.id !== id));
-  }, []);
+  const deleteReminder = useCallback(
+    async (id: string) => {
+      // optimistic
+      const snapshot = reminders;
+      setReminders((prev) => prev.filter((r) => r.id !== id));
+
+      const res = await fetch(`/api/reminders/${id}`, { method: "DELETE" });
+      if (!res.ok) {
+        const text = await res.text().catch(() => "");
+      console.error("Failed to delete reminder", res.status, text);
+      setReminders(snapshot);
+      }
+    },
+    [reminders]
+  );
 
   const setFilters = useCallback(
     (updater: (prev: Filters) => Filters) => {
@@ -253,24 +262,22 @@ export function ReminderProvider({ children }: { children: ReactNode }) {
     [updateFilters]
   );
 
+  // UI-only areas for now
   const addArea = useCallback(
     (label: string): Area => {
       const trimmed = label.trim();
       if (!trimmed) return "other";
 
       const baseId = toAreaId(trimmed);
-
-      // prevent collisions
       let candidate = baseId;
       let counter = 2;
+
       const existingIds = new Set(areas.map((a) => a.id));
       while (existingIds.has(candidate)) {
         candidate = `${baseId}-${counter++}`;
       }
 
-      const def: AreaDefinition = { id: candidate, label: trimmed };
-      setAreas((prev) => [...prev, def]);
-
+      setAreas((prev) => [...prev, { id: candidate, label: trimmed }]);
       return candidate;
     },
     [areas]
@@ -305,6 +312,7 @@ export function ReminderProvider({ children }: { children: ReactNode }) {
       filters,
       setFilters,
       setAreaFilter,
+      refetchReminders,
     }),
     [
       reminders,
@@ -320,6 +328,7 @@ export function ReminderProvider({ children }: { children: ReactNode }) {
       filters,
       setFilters,
       setAreaFilter,
+      refetchReminders,
     ]
   );
 
@@ -332,8 +341,6 @@ export function ReminderProvider({ children }: { children: ReactNode }) {
 
 export function useReminderStore(): ReminderStoreValue {
   const ctx = useContext(ReminderStoreContext);
-  if (!ctx) {
-    throw new Error("useReminderStore must be used within ReminderProvider");
-  }
+  if (!ctx) throw new Error("useReminderStore must be used within ReminderProvider");
   return ctx;
 }

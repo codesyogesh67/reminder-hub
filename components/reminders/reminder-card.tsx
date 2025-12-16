@@ -1,5 +1,7 @@
 // components/reminders/reminder-card.tsx
+"use client";
 
+import { useEffect, useMemo, useState } from "react";
 import type { Reminder, Priority } from "@/lib/reminder";
 import {
   Clock,
@@ -20,21 +22,29 @@ const PRIORITY_LABELS: Record<Priority, string> = {
 export function ReminderCard({ reminder }: { reminder: Reminder }) {
   const { toggleReminderStatus, deleteReminder } = useReminderStore();
 
-  const due = new Date(reminder.dueAt);
+  // ✅ prevents SSR/CSR mismatch for locale formatting
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
 
-  const timeLabel = due.toLocaleTimeString(undefined, {
-    hour: "numeric",
-    minute: "2-digit",
-  });
+  const { timeLabel, dateLabel, isToday } = useMemo(() => {
+    const due = new Date(reminder.dueAt);
 
-  const dateLabel = due.toLocaleDateString(undefined, {
-    month: "short",
-    day: "numeric",
-  });
+    const time = due.toLocaleTimeString(undefined, {
+      hour: "numeric",
+      minute: "2-digit",
+    });
 
-  const isToday =
-    due.toDateString() === new Date().toDateString() ||
-    Math.abs(due.getTime() - new Date().getTime()) < 24 * 60 * 60 * 1000;
+    const date = due.toLocaleDateString(undefined, {
+      month: "short",
+      day: "numeric",
+    });
+
+    const today =
+      due.toDateString() === new Date().toDateString() ||
+      Math.abs(due.getTime() - new Date().getTime()) < 24 * 60 * 60 * 1000;
+
+    return { timeLabel: time, dateLabel: date, isToday: today };
+  }, [reminder.dueAt]);
 
   const priorityColor =
     reminder.priority === "high"
@@ -74,7 +84,6 @@ export function ReminderCard({ reminder }: { reminder: Reminder }) {
           )}
         </div>
 
-        {/* Delete button */}
         <button
           type="button"
           onClick={() => deleteReminder(reminder.id)}
@@ -89,10 +98,11 @@ export function ReminderCard({ reminder }: { reminder: Reminder }) {
         <div className="flex items-center gap-2">
           <span className="inline-flex items-center gap-1 rounded-full bg-slate-950/70 px-2 py-1">
             <Clock className="h-3 w-3" />
-            <span>{timeLabel}</span>
+            {/* ✅ render stable placeholder on SSR */}
+            <span>{mounted ? timeLabel : "--:--"}</span>
           </span>
           <span className="text-slate-500">
-            {isToday ? "Today" : dateLabel}
+            {mounted ? (isToday ? "Today" : dateLabel) : "—"}
           </span>
         </div>
 
