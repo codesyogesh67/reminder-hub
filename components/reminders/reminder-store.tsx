@@ -48,7 +48,7 @@ type ReminderStoreValue = {
   addReminder: (input: ReminderInput) => Promise<void>;
   toggleReminderStatus: (id: string) => Promise<void>;
   deleteReminder: (id: string) => Promise<void>;
-  addArea: (label: string) => Area; // returns new area id (UI-only for now)
+  addArea: (label: string) => Promise<Area>; // returns new area id (UI-only for now)
 
   // settings
   setSettings: (updater: (prev: ReminderSettings) => ReminderSettings) => void;
@@ -111,7 +111,7 @@ function normalizeReminder(r: any): Reminder {
     note: r.note ?? "",
     // Your API might return areaId + area.name; for now keep area string if present
     // If you return `area` as string from API, this will use it
-    area: (r.area ?? r.areaId ?? "other") as Area,
+    area: (r.areaId ?? r.area?.id ?? "other") as Area,
     dueAt: typeof r.dueAt === "string" ? r.dueAt : new Date(r.dueAt).toISOString(),
     frequency: String(r.frequency),
     priority: String(r.priority) as Priority,
@@ -132,7 +132,7 @@ function normalizeReminder(r: any): Reminder {
 export function ReminderProvider({ children }: { children: ReactNode }) {
   // ✅ Start empty: DB is source of truth
   const [reminders, setReminders] = useState<Reminder[]>([]);
-  const [areas, setAreas] = useState<AreaDefinition[]>(INITIAL_AREAS);
+  const [areas, setAreas] = useState<AreaDefinition[]>([]);
 
   const [settings, setSettingsState] = useState<ReminderSettings>({
     autoDeleteCompletedAfterDays: 7,
@@ -162,6 +162,14 @@ export function ReminderProvider({ children }: { children: ReactNode }) {
     refetchReminders();
   }, [refetchReminders]);
 
+  useEffect(() => {
+    (async () => {
+      const res = await fetch("/api/areas", { cache: "no-store" });
+      const data = await res.json();
+      setAreas(data.areas ?? []);
+    })();
+  }, []);
+
   const addReminder = useCallback(
     async (input: ReminderInput) => {
       // POST to DB
@@ -173,7 +181,7 @@ export function ReminderProvider({ children }: { children: ReactNode }) {
           note: input.note ?? null,
           // For now: store UI area as string in API if you designed it that way.
           // If your DB model uses areaId, later we’ll map area -> areaId.
-          area: input.area,
+          areaId: input.area,
           dueAt: input.dueAt,
           frequency: input.frequency,
           priority: input.priority,
@@ -263,25 +271,28 @@ export function ReminderProvider({ children }: { children: ReactNode }) {
   );
 
   // UI-only areas for now
-  const addArea = useCallback(
-    (label: string): Area => {
-      const trimmed = label.trim();
-      if (!trimmed) return "other";
-
-      const baseId = toAreaId(trimmed);
-      let candidate = baseId;
-      let counter = 2;
-
-      const existingIds = new Set(areas.map((a) => a.id));
-      while (existingIds.has(candidate)) {
-        candidate = `${baseId}-${counter++}`;
-      }
-
-      setAreas((prev) => [...prev, { id: candidate, label: trimmed }]);
-      return candidate;
-    },
-    [areas]
-  );
+  const addArea = useCallback(async (label: string): Promise<Area> => {
+    const trimmed = label.trim();
+    if (!trimmed) return "other";
+  
+    const res = await fetch("/api/areas", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ label: trimmed }),
+    });
+  
+    if (!res.ok) {
+      console.error("Failed to create area");
+      return "other";
+    }
+  
+    const data = await res.json();
+    const created = data.area as AreaDefinition;
+  
+    setAreas((prev) => [...prev, created]);
+    return created.id;
+  }, []);
+  
 
   const setSettings = useCallback(
     (updater: (prev: ReminderSettings) => ReminderSettings) => {

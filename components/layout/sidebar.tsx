@@ -35,12 +35,15 @@ export default function Sidebar() {
     setView(nextView);
   }
 
-  function handleAddArea(e: FormEvent) {
+  async function handleAddArea(e: FormEvent) {
     e.preventDefault();
+  
     const label = newAreaName.trim();
     if (!label) return;
-    const id = addArea(label);
+  
+    const id = await addArea(label); // ⬅️ await DB-created area
     setAreaFilter(id);
+  
     setNewAreaName("");
   }
 
