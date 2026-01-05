@@ -1,11 +1,12 @@
 // components/layout/navbar.tsx
 "use client";
 
-import { useState, KeyboardEvent } from "react";
+import { useEffect, useState, KeyboardEvent } from "react";
 import { Input } from "@/components/ui/input";
 import { NewReminderDialog } from "@/components/reminders/new-reminder-dialog";
 import { useReminderStore } from "@/components/reminders/reminder-store";
 import { MobileSidebar } from "@/components/layout/mobile-sidebar";
+import { UserButton, SignedIn, SignedOut, SignInButton } from "@clerk/nextjs";
 
 const VIEW_TITLE: Record<
   import("@/components/reminders/reminder-store").View,
@@ -30,6 +31,10 @@ export default function Navbar() {
   const title = VIEW_TITLE[view];
 
   const [quickTitle, setQuickTitle] = useState("");
+
+  // ✅ Fix hydration mismatch for Clerk components
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
 
   function handleQuickAddKeyDown(e: KeyboardEvent<HTMLInputElement>) {
     if (e.key !== "Enter") return;
@@ -101,6 +106,25 @@ export default function Navbar() {
           />
           <NewReminderDialog />
         </div>
+
+        {/* ✅ Clerk: render only after mount to avoid hydration mismatch */}
+        {mounted ? (
+          <>
+            <SignedIn>
+              <UserButton afterSignOutUrl="/sign-in" />
+            </SignedIn>
+            <SignedOut>
+              <SignInButton mode="modal">
+                <button className="rounded-xl border border-slate-700 bg-slate-900/70 px-3 py-2 text-sm text-slate-100 hover:bg-slate-900">
+                  Sign in
+                </button>
+              </SignInButton>
+            </SignedOut>
+          </>
+        ) : (
+          // placeholder keeps layout stable
+          <div className="h-9 w-9 rounded-full bg-slate-800/70" />
+        )}
       </div>
     </header>
   );

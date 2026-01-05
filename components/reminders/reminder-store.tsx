@@ -109,23 +109,13 @@ function normalizeReminder(r: any): Reminder {
     id: String(r.id),
     title: String(r.title),
     note: r.note ?? "",
-    // Your API might return areaId + area.name; for now keep area string if present
-    // If you return `area` as string from API, this will use it
-    area: (r.areaId ?? r.area?.id ?? "other") as Area,
+    areaId: r.areaId ?? null,
     dueAt: typeof r.dueAt === "string" ? r.dueAt : new Date(r.dueAt).toISOString(),
     frequency: String(r.frequency),
-    priority: String(r.priority) as Priority,
-    status: String(r.status) as Status,
-    createdAt:
-      typeof r.createdAt === "string"
-        ? r.createdAt
-        : new Date(r.createdAt).toISOString(),
-    completedAt:
-      r.completedAt == null
-        ? null
-        : typeof r.completedAt === "string"
-        ? r.completedAt
-        : new Date(r.completedAt).toISOString(),
+    priority: r.priority,
+    status: r.status,
+    createdAt: typeof r.createdAt === "string" ? r.createdAt : new Date(r.createdAt).toISOString(),
+    completedAt: r.completedAt ? (typeof r.completedAt === "string" ? r.completedAt : new Date(r.completedAt).toISOString()) : null,
   };
 }
 
@@ -148,8 +138,14 @@ export function ReminderProvider({ children }: { children: ReactNode }) {
 
   const refetchReminders = useCallback(async () => {
     const res = await fetch("/api/reminders", { cache: "no-store" });
+    if (res.status === 401) {
+      // not signed in yet — don't spam console
+      setReminders([]);
+      return;
+    }
+    
     if (!res.ok) {
-      console.error("Failed to fetch reminders");
+      console.error("Failed to fetch reminders", res.status);
       return;
     }
     const data = await res.json();
@@ -282,7 +278,8 @@ export function ReminderProvider({ children }: { children: ReactNode }) {
     });
   
     if (!res.ok) {
-      console.error("Failed to create area");
+      const text = await res.text().catch(() => "")
+      console.error("Failed to create area", res.status, text);
       return "other";
     }
   

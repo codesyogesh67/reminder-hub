@@ -10,17 +10,22 @@ export type Area = string;
 export type Reminder = {
   id: string;
   title: string;
-  note?: string;
-  area: Area;
-  dueAt: string; // ISO datetime
+  note: string;
+  areaId: string | null; // ✅ normalized
+  dueAt: string;
   frequency: Frequency;
   priority: Priority;
   status: Status;
-  createdAt: string; // ISO datetime
-  completedAt?: string | null; // when marked done (for auto-delete)
+  createdAt: string;
+  completedAt: string | null;
 };
 
-export type ReminderInput = Omit<
-  Reminder,
-  "id" | "createdAt" | "status" | "completedAt"
-> & { status?: Status };
+export type ReminderInput = {
+  title: string;
+  note?: string;
+  areaId: string | null; // ✅ normalized
+  dueAt: string;
+  frequency: Frequency;
+  priority: Priority;
+  status?: Status;
+};

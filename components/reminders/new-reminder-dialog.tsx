@@ -1,9 +1,8 @@
-// components/reminders/new-reminder-dialog.tsx
 "use client";
 
-import { useState, FormEvent } from "react";
+import { useMemo, useState, FormEvent } from "react";
 import { useReminderStore } from "@/components/reminders/reminder-store";
-import type { Area, Frequency, Priority } from "@/lib/reminder";
+import type { Frequency, Priority } from "@/lib/reminder";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -25,14 +24,6 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 
-const areaOptions: { value: Area; label: string }[] = [
-  { value: "health", label: "Health" },
-  { value: "coding", label: "Coding" },
-  { value: "family", label: "Family" },
-  { value: "money", label: "Money" },
-  { value: "other", label: "Other" },
-];
-
 const frequencyOptions: { value: Frequency; label: string }[] = [
   { value: "once", label: "Once" },
   { value: "daily", label: "Daily" },
@@ -48,14 +39,21 @@ const priorityOptions: { value: Priority; label: string }[] = [
 ];
 
 export function NewReminderDialog() {
-  const { addReminder, filters } = useReminderStore();
+  const { addReminder, filters, areas } = useReminderStore();
   const [open, setOpen] = useState(false);
 
   const [title, setTitle] = useState("");
   const [note, setNote] = useState("");
-  const [area, setArea] = useState<Area>(
-    filters.area === "all" ? "other" : filters.area
-  );
+
+  // ✅ areaId (DB id) not area slug
+  const defaultAreaId = useMemo(() => {
+    // if filter is "all", pick first area if available, else null
+    if (filters.area === "all") return areas[0]?.id ?? null;
+    return String(filters.area);
+  }, [filters.area, areas]);
+
+  const [areaId, setAreaId] = useState<string | null>(defaultAreaId);
+
   const [frequency, setFrequency] = useState<Frequency>("once");
   const [priority, setPriority] = useState<Priority>("medium");
   const [date, setDate] = useState<string>("");
@@ -64,14 +62,14 @@ export function NewReminderDialog() {
   function resetForm() {
     setTitle("");
     setNote("");
-    setArea(filters.area === "all" ? "other" : filters.area);
+    setAreaId(defaultAreaId);
     setFrequency("once");
     setPriority("medium");
     setDate("");
     setTime("");
   }
 
-  function handleSubmit(e: FormEvent) {
+  async function handleSubmit(e: FormEvent) {
     e.preventDefault();
     if (!title.trim()) return;
 
@@ -79,16 +77,15 @@ export function NewReminderDialog() {
     let due: Date;
     if (date) {
       const base = time || "09:00";
-      // date: "2025-01-01", time: "13:30"
       due = new Date(`${date}T${base}`);
     } else {
       due = new Date();
     }
 
-    addReminder({
+    await addReminder({
       title: title.trim(),
       note: note.trim() ? note.trim() : undefined,
-      area,
+      areaId, // ✅ send areaId
       frequency,
       priority,
       dueAt: due.toISOString(),
@@ -149,18 +146,23 @@ export function NewReminderDialog() {
             <div className="space-y-1.5">
               <Label>Area</Label>
               <Select
-                value={area}
-                onValueChange={(value) => setArea(value as Area)}
+                value={areaId ?? ""}
+                onValueChange={(value) => setAreaId(value || null)}
               >
                 <SelectTrigger className="bg-slate-900/60 text-xs">
                   <SelectValue placeholder="Select area" />
                 </SelectTrigger>
                 <SelectContent className="border-slate-800 bg-slate-950 text-xs">
-                  {areaOptions.map((opt) => (
-                    <SelectItem key={opt.value} value={opt.value}>
-                      {opt.label}
+                  {areas.map((a) => (
+                    <SelectItem key={a.id} value={a.id}>
+                      {a.label}
                     </SelectItem>
                   ))}
+                  {areas.length === 0 && (
+                    <div className="px-2 py-2 text-xs text-slate-500">
+                      No areas yet. Create one from the sidebar.
+                    </div>
+                  )}
                 </SelectContent>
               </Select>
             </div>

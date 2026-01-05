@@ -20,7 +20,7 @@ const PRIORITY_LABELS: Record<Priority, string> = {
 };
 
 export function ReminderCard({ reminder }: { reminder: Reminder }) {
-  const { toggleReminderStatus, deleteReminder } = useReminderStore();
+  const { toggleReminderStatus, deleteReminder, areas } = useReminderStore();
 
   // ✅ prevents SSR/CSR mismatch for locale formatting
   const [mounted, setMounted] = useState(false);
@@ -64,6 +64,10 @@ export function ReminderCard({ reminder }: { reminder: Reminder }) {
     "font-medium text-slate-50" +
     (reminder.status === "done" ? " line-through text-slate-500" : "");
 
+  const areaLabel = reminder.areaId
+    ? areas.find((a) => a.id === reminder.areaId)?.label ?? "Unknown"
+    : "No area";
+
   return (
     <div className="group flex h-full flex-col rounded-2xl border border-slate-800/80 bg-slate-900/70 p-3.5 text-sm shadow-sm shadow-slate-950/60 transition hover:-translate-y-0.5 hover:border-sky-500/60 hover:bg-slate-900 hover:shadow-lg hover:shadow-sky-950/40">
       <div className="mb-2 flex items-start gap-2">
@@ -101,9 +105,14 @@ export function ReminderCard({ reminder }: { reminder: Reminder }) {
             {/* ✅ render stable placeholder on SSR */}
             <span>{mounted ? timeLabel : "--:--"}</span>
           </span>
-          <span className="text-slate-500">
-            {mounted ? (isToday ? "Today" : dateLabel) : "—"}
-          </span>
+          <div className="flex items-center gap-2">
+            <span className="text-slate-500">
+              {mounted ? (isToday ? "Today" : dateLabel) : "—"}
+            </span>
+            <span className="rounded-full border border-slate-800 bg-slate-950/60 px-2 py-0.5 text-[10px] text-slate-300">
+              {areaLabel}
+            </span>
+          </div>
         </div>
 
         <div className="flex items-center gap-1.5">
