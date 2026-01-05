@@ -12,6 +12,7 @@
     "seed": "tsx prisma/seed.ts"
   },
   "dependencies": {
+    "@clerk/nextjs": "^6.36.5",
     "@prisma/adapter-pg": "^7.0.1",
     "@prisma/client": "^6.15.0",
     "@radix-ui/react-dialog": "^1.1.15",
@@ -26,6 +27,7 @@
     "pg": "^8.16.3",
     "react": "19.2.0",
     "react-dom": "19.2.0",
+    "svix": "^1.84.1",
     "tailwind-merge": "^3.4.0"
   },
   "devDependencies": {
