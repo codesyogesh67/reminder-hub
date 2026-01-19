@@ -5,7 +5,7 @@ import { auth } from "@clerk/nextjs/server";
 // const DEMO_USER_ID = "demo-user";
 
 export async function GET() {
-  const { userId } = auth();
+  const { userId } = await auth();
   if (!userId)
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
@@ -20,7 +20,7 @@ export async function GET() {
 }
 
 export async function POST(req: Request) {
-  const { userId } = auth();
+  const { userId } = await auth();
   console.log("userid is here", userId);
   if (!userId)
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });

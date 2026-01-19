@@ -18,24 +18,26 @@ const isProtectedRoute = createRouteMatcher([
   // add more protected pages here
 ]);
 
-export default clerkMiddleware((auth, req) => {
-  if (isPublicRoute(req)) return NextResponse.next();
-
-  const { userId } = auth();
-
-  // ✅ If API: return JSON 401 (no redirect)
-  if (req.nextUrl.pathname.startsWith("/api")) {
-    if (!userId) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
+export default clerkMiddleware(async (auth, req) => {
+  // 1️⃣ Allow public routes
+  if (isPublicRoute(req)) {
     return NextResponse.next();
   }
 
-  // ✅ Protected pages: redirect to sign-in
-  if (isProtectedRoute(req) && !userId) {
-    const signInUrl = new URL("/sign-in", req.url);
-    signInUrl.searchParams.set("redirect_url", req.url);
-    return NextResponse.redirect(signInUrl);
+  // 2️⃣ API routes → JSON 401 (NO redirect)
+  if (req.nextUrl.pathname.startsWith("/api")) {
+    const { userId } = await auth();
+
+    if (!userId) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    return NextResponse.next();
+  }
+
+  // 3️⃣ Protected pages → Clerk handles redirect
+  if (isProtectedRoute(req)) {
+    await auth.protect(); // ✅ auto redirect to /sign-in
   }
 
   return NextResponse.next();

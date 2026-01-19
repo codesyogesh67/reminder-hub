@@ -49,12 +49,13 @@ export async function POST(req: Request) {
 
     try {
       await prisma.user.upsert({
-        where: { clerkId },
+        where: { id: clerkId },
         update: {
-          email, // can be null because schema is String?
+          email,
+          // can be null because schema is String?
         },
         create: {
-          clerkId,
+          id: clerkId,
           email, // can be null
         },
       });

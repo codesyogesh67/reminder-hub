@@ -9,7 +9,7 @@ type Ctx = { params: Promise<{ id: string }> };
 
 export async function DELETE(_req: Request, context: Ctx) {
   try {
-    const { userId } = auth();
+    const { userId } = await auth();
     if (!userId)
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     const { id } = await context.params;
@@ -35,12 +35,21 @@ export async function DELETE(_req: Request, context: Ctx) {
   }
 }
 
-export async function PATCH(_req: Request, context: Ctx) {
+export async function PATCH(req: Request, context: Ctx) {
   try {
-    const { userId } = auth();
+    const { userId } = await auth();
     if (!userId)
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
     const { id } = await context.params;
+
+    // ✅ read body safely (PATCH might be called without body)
+    let body: any = null;
+    try {
+      body = await req.json();
+    } catch {
+      body = null;
+    }
 
     const existing = await prisma.reminder.findFirst({
       where: { id, userId },
@@ -50,6 +59,75 @@ export async function PATCH(_req: Request, context: Ctx) {
       return NextResponse.json({ error: "Not found" }, { status: 404 });
     }
 
+    // after parsing body + checking existing...
+
+    if (body && Object.prototype.hasOwnProperty.call(body, "title")) {
+      const rawTitle = typeof body.title === "string" ? body.title.trim() : "";
+      if (!rawTitle) {
+        return NextResponse.json({ error: "Title required" }, { status: 400 });
+      }
+
+      const updated = await prisma.reminder.update({
+        where: { id },
+        data: { title: rawTitle },
+      });
+
+      return NextResponse.json({ reminder: updated });
+    }
+
+    if (body && Object.prototype.hasOwnProperty.call(body, "dueAt")) {
+      const raw = body.dueAt;
+      const date = new Date(raw);
+
+      if (Number.isNaN(date.getTime())) {
+        return NextResponse.json({ error: "Invalid dueAt" }, { status: 400 });
+      }
+
+      const updated = await prisma.reminder.update({
+        where: { id },
+        data: {
+          dueAt: date,
+          hasTime: Boolean(body.hasTime),
+        },
+      });
+
+      return NextResponse.json({ reminder: updated });
+    }
+
+    // -----------------------------
+    // ✅ Mode A: Move area (if areaId provided)
+    // -----------------------------
+    if (body && Object.prototype.hasOwnProperty.call(body, "areaId")) {
+      const rawAreaId =
+        typeof body.areaId === "string" ? body.areaId.trim() : "";
+      const nextAreaId = rawAreaId.length ? rawAreaId : null;
+
+      // validate area belongs to user (unless null)
+      if (nextAreaId) {
+        const area = await prisma.area.findFirst({
+          where: { id: nextAreaId, userId },
+          select: { id: true },
+        });
+
+        if (!area) {
+          return NextResponse.json(
+            { error: "Invalid areaId (not found or not yours)" },
+            { status: 400 }
+          );
+        }
+      }
+
+      const updated = await prisma.reminder.update({
+        where: { id },
+        data: { areaId: nextAreaId },
+      });
+
+      return NextResponse.json({ reminder: updated });
+    }
+
+    // -----------------------------
+    // ✅ Mode B: Toggle status (default)
+    // -----------------------------
     const nextStatus = existing.status === "done" ? "pending" : "done";
 
     const updated = await prisma.reminder.update({

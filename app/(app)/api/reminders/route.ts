@@ -2,10 +2,10 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { auth } from "@clerk/nextjs/server";
 
-// const DEMO_USER_ID = "demo-user";
+const DEFAULT_AREA_NAME = "General";
 
 export async function GET() {
-  const { userId } = auth();
+  const { userId } = await auth();
   if (!userId)
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   const reminders = await prisma.reminder.findMany({
@@ -32,20 +32,62 @@ export async function GET() {
 }
 
 export async function POST(req: Request) {
-  const { userId } = auth();
-  if (!userId)
+  const { userId } = await auth();
+  if (!userId) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
   const body = await req.json();
 
-  // expected body:
-  // { title, note?, areaId?, dueAt, frequency, priority, status? }
+  // normalize areaId
+  const rawAreaId = typeof body.areaId === "string" ? body.areaId.trim() : "";
+  const requestedAreaId = rawAreaId.length ? rawAreaId : null;
+
+  let finalAreaId: string | null = null;
+
+  if (requestedAreaId) {
+    // ✅ verify area exists AND belongs to user
+    const area = await prisma.area.findFirst({
+      where: { id: requestedAreaId, userId },
+      select: { id: true },
+    });
+
+    if (!area) {
+      return NextResponse.json(
+        { error: "Invalid areaId (not found or not yours)" },
+        { status: 400 }
+      );
+    }
+
+    finalAreaId = area.id;
+  } else {
+    // ✅ create/fetch default area for this user
+    const defaultArea = await prisma.area.upsert({
+      where: {
+        userId_name: {
+          userId,
+          name: DEFAULT_AREA_NAME,
+        },
+      },
+      update: {},
+      create: {
+        userId,
+        name: DEFAULT_AREA_NAME,
+      },
+      select: { id: true },
+    });
+
+    finalAreaId = defaultArea.id;
+  }
+
   const reminder = await prisma.reminder.create({
     data: {
       userId,
       title: body.title,
       note: body.note ?? null,
-      areaId: body.areaId ?? null,
+      areaId: finalAreaId, // ✅ always valid now
       dueAt: new Date(body.dueAt),
+      hasTime: body.hasTime ?? false,
       frequency: body.frequency,
       priority: body.priority,
       status: body.status ?? "pending",
@@ -53,5 +95,5 @@ export async function POST(req: Request) {
     },
   });
 
-  return NextResponse.json({ reminder }, { status: 201 });
+  return NextResponse.json(reminder);
 }
