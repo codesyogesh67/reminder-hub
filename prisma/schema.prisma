@@ -5,13 +5,13 @@ generator client {
 }
 
 datasource db {
-  provider = "postgresql"
-  url      = env("DATABASE_URL")
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
 }
 
 model User {
-  id        String   @id @default(cuid())
-  clerkId   String   @unique
+  id        String   @id // store clerk userid here
   email     String?  @unique
   name      String?
   createdAt DateTime @default(now())
@@ -29,6 +29,8 @@ model Area {
 
   createdAt DateTime   @default(now())
   reminders Reminder[]
+
+  @@unique([userId, name])
 }
 
 model Reminder {
@@ -42,6 +44,7 @@ model Reminder {
   title     String
   note      String?
   dueAt     DateTime
+  hasTime   Boolean  @default(false)
   frequency String // once/daily/weekly/monthly/custom
   priority  String // low/medium/high
   status    String // pending/done/snoozed
