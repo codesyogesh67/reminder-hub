@@ -54,19 +54,31 @@ export default function Navbar() {
       due = base;
     }
 
-    // choose area: current filter if specific, otherwise "other" or first area
+    // choose area: current filter if specific, otherwise "General"
+    const hasSpecificArea =
+      typeof filters.area === "string" &&
+      filters.area !== "all" &&
+      filters.area.length > 0;
+
     let areaId: string;
-    if (filters.area !== "all") {
+
+    if (hasSpecificArea) {
       areaId = filters.area;
     } else {
-      const other = areas.find((a) => a.id === "other");
-      areaId = other?.id ?? areas[0]?.id ?? "other";
+      const general = areas.find(
+        (a) => a.label.trim().toLowerCase() === "general"
+      );
+
+      // If General doesn't exist yet, fallback to first area (but ideally you create General in DB)
+      areaId = general?.id ?? areas[0]?.id ?? "";
     }
+
+    if (!areaId) return; // (optional) don't create if no areas loaded yet
 
     addReminder({
       title: trimmed,
       note: undefined,
-      area: areaId,
+      areaId: areaId,
       frequency: "once",
       priority: "medium",
       dueAt: due.toISOString(),

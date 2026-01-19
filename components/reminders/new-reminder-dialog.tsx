@@ -3,6 +3,7 @@
 import { useMemo, useState, FormEvent } from "react";
 import { useReminderStore } from "@/components/reminders/reminder-store";
 import type { Frequency, Priority } from "@/lib/reminder";
+import { SignInButton } from "@clerk/nextjs";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -39,7 +40,13 @@ const priorityOptions: { value: Priority; label: string }[] = [
 ];
 
 export function NewReminderDialog() {
-  const { addReminder, filters, areas } = useReminderStore();
+  const {
+    addReminder,
+    filters,
+    areas,
+    authRequired,
+    setAuthRequired,
+  } = useReminderStore();
   const [open, setOpen] = useState(false);
 
   const [title, setTitle] = useState("");
@@ -105,6 +112,36 @@ export function NewReminderDialog() {
           + New
         </Button>
       </DialogTrigger>
+
+      <Dialog open={authRequired} onOpenChange={setAuthRequired}>
+        <DialogContent className="border-slate-800 bg-slate-950 text-slate-50 sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="text-base font-semibold">
+              Sign in required
+            </DialogTitle>
+            <DialogDescription className="text-xs text-slate-400">
+              Please sign in to create reminders and manage areas.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="flex justify-end gap-2 pt-2">
+            <Button
+              type="button"
+              variant="ghost"
+              className="text-xs text-slate-300 hover:bg-slate-900"
+              onClick={() => setAuthRequired(false)}
+            >
+              Cancel
+            </Button>
+
+            <SignInButton mode="modal">
+              <Button className="bg-sky-500 text-xs font-semibold text-slate-950 hover:bg-sky-400">
+                Sign in
+              </Button>
+            </SignInButton>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       <DialogContent className="border-slate-800 bg-slate-950 text-slate-50 sm:max-w-lg">
         <DialogHeader>
