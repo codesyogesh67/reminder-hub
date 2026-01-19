@@ -44,11 +44,19 @@ type ReminderStoreValue = {
   areas: AreaDefinition[];
   settings: ReminderSettings;
 
+  authRequired: boolean;
+  setAuthRequired: (v: boolean) => void;
+
+
   // actions
   addReminder: (input: ReminderInput) => Promise<void>;
   toggleReminderStatus: (id: string) => Promise<void>;
   deleteReminder: (id: string) => Promise<void>;
   addArea: (label: string) => Promise<Area>; // returns new area id (UI-only for now)
+  moveReminder: (id: string, areaId: string | null) => Promise<void>;
+  updateReminderTitle: (id: string, title: string) => Promise<void>;
+  updateReminderDueAt: (id: string, dueAt: string, hasTime: boolean) => Promise<void>;
+
 
   // settings
   setSettings: (updater: (prev: ReminderSettings) => ReminderSettings) => void;
@@ -105,12 +113,17 @@ const INITIAL_AREAS: AreaDefinition[] = [
 
 // Map API reminder -> UI Reminder (handles Date objects/strings safely)
 function normalizeReminder(r: any): Reminder {
+  if (!r || typeof r !== "object") {
+    throw new Error("normalizeReminder: invalid reminder payload");
+  }
+
   return {
     id: String(r.id),
     title: String(r.title),
     note: r.note ?? "",
     areaId: r.areaId ?? null,
     dueAt: typeof r.dueAt === "string" ? r.dueAt : new Date(r.dueAt).toISOString(),
+    hasTime: Boolean(r.hasTime),
     frequency: String(r.frequency),
     priority: r.priority,
     status: r.status,
@@ -123,6 +136,9 @@ export function ReminderProvider({ children }: { children: ReactNode }) {
   // ✅ Start empty: DB is source of truth
   const [reminders, setReminders] = useState<Reminder[]>([]);
   const [areas, setAreas] = useState<AreaDefinition[]>([]);
+
+  const [authRequired, setAuthRequired] = useState(false);
+
 
   const [settings, setSettingsState] = useState<ReminderSettings>({
     autoDeleteCompletedAfterDays: 7,
@@ -161,23 +177,35 @@ export function ReminderProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     (async () => {
       const res = await fetch("/api/areas", { cache: "no-store" });
-      const data = await res.json();
-      setAreas(data.areas ?? []);
+
+      if (res.status === 401) {
+        setAreas([]);
+        return;
+      }
+
+      if (!res.ok) {
+        console.error("Failed to fetch areas", res.status);
+        return;
+      }
+
+      const data = await res.json().catch(() => null);
+      setAreas(data?.areas ?? []);
     })();
   }, []);
 
+
   const addReminder = useCallback(
     async (input: ReminderInput) => {
-      // POST to DB
       const res = await fetch("/api/reminders", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           title: input.title,
           note: input.note ?? null,
-          // For now: store UI area as string in API if you designed it that way.
-          // If your DB model uses areaId, later we’ll map area -> areaId.
-          areaId: input.area,
+  
+          // IMPORTANT: this must be an Area.id or null
+          areaId: input.areaId ?? null,
+  
           dueAt: input.dueAt,
           frequency: input.frequency,
           priority: input.priority,
@@ -185,21 +213,91 @@ export function ReminderProvider({ children }: { children: ReactNode }) {
         }),
       });
 
-      if (!res.ok) {
-        console.error("Failed to create reminder");
+      if (res.status === 401) {
+        setAuthRequired(true);
         return;
       }
-
-      const data = await res.json();
-      const created = normalizeReminder(data.reminder);
-
-      // Update UI immediately
+  
+      const data = await res.json().catch(() => null);
+  
+      if (!res.ok) {
+        console.error("Failed to create reminder", res.status, data);
+        return;
+      }
+  
+      // ✅ Support both possible API response shapes:
+      const payload = data?.reminder ?? data;
+  
+      if (!payload?.id) {
+        console.error("Create reminder: unexpected payload", data);
+        return;
+      }
+  
+      const created = normalizeReminder(payload);
+  
       setReminders((prev) =>
         applyAutoDelete([created, ...prev], settings.autoDeleteCompletedAfterDays)
       );
     },
     [settings.autoDeleteCompletedAfterDays]
   );
+  
+  const updateReminderTitle = useCallback(
+    async (id: string, title: string) => {
+      const trimmed = title.trim();
+      if (!trimmed) return;
+  
+      // optimistic
+      setReminders((prev) => prev.map((r) => (r.id === id ? { ...r, title: trimmed } : r)));
+  
+      const res = await fetch(`/api/reminders/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ title: trimmed }),
+      });
+  
+      if (!res.ok) {
+        await refetchReminders();
+        return;
+      }
+  
+      const data = await res.json().catch(() => null);
+      if (data?.reminder) {
+        const updated = normalizeReminder(data.reminder);
+        setReminders((prev) => prev.map((r) => (r.id === id ? updated : r)));
+      }
+    },
+    [refetchReminders]
+  );
+
+
+  const updateReminderDueAt = useCallback(
+    async (id: string, dueAt: string, hasTime: boolean) => {
+      // optimistic
+      setReminders((prev) =>
+        prev.map((r) => (r.id === id ? { ...r, dueAt, hasTime } : r))
+      );
+  
+      const res = await fetch(`/api/reminders/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ dueAt, hasTime }),
+      });
+  
+      if (!res.ok) {
+        await refetchReminders();
+        return;
+      }
+  
+      const data = await res.json().catch(() => null);
+      if (data?.reminder) {
+        const updated = normalizeReminder(data.reminder);
+        setReminders((prev) => prev.map((r) => (r.id === id ? updated : r)));
+      }
+    },
+    [refetchReminders]
+  );
+  
 
   const toggleReminderStatus = useCallback(
     async (id: string) => {
@@ -235,6 +333,39 @@ export function ReminderProvider({ children }: { children: ReactNode }) {
     },
     [refetchReminders, settings.autoDeleteCompletedAfterDays]
   );
+
+
+  const moveReminder = useCallback(
+    async (id: string, areaId: string | null) => {
+      // optimistic update
+      setReminders((prev) =>
+        prev.map((r) => (r.id === id ? { ...r, areaId } : r))
+      );
+  
+      const res = await fetch(`/api/reminders/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ areaId }), // ✅ triggers move mode
+      });
+  
+      if (!res.ok) {
+        // fallback to server truth
+        await refetchReminders();
+        return;
+      }
+  
+      const data = await res.json().catch(() => null);
+      if (data?.reminder) {
+        const updated = normalizeReminder(data.reminder);
+        setReminders((prev) =>
+          prev.map((r) => (r.id === id ? updated : r))
+        );
+      }
+    },
+    [refetchReminders]
+  );
+  
+
 
   const deleteReminder = useCallback(
     async (id: string) => {
@@ -276,6 +407,12 @@ export function ReminderProvider({ children }: { children: ReactNode }) {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ label: trimmed }),
     });
+
+    if (res.status === 401) {
+      setAuthRequired(true);
+      return "other";
+    }
+
   
     if (!res.ok) {
       const text = await res.text().catch(() => "")
@@ -312,6 +449,9 @@ export function ReminderProvider({ children }: { children: ReactNode }) {
       settings,
       addReminder,
       toggleReminderStatus,
+      updateReminderTitle,
+      updateReminderDueAt,
+      moveReminder,
       deleteReminder,
       addArea,
       setSettings,
@@ -321,6 +461,8 @@ export function ReminderProvider({ children }: { children: ReactNode }) {
       setFilters,
       setAreaFilter,
       refetchReminders,
+      authRequired,
+      setAuthRequired,
     }),
     [
       reminders,
@@ -328,6 +470,9 @@ export function ReminderProvider({ children }: { children: ReactNode }) {
       settings,
       addReminder,
       toggleReminderStatus,
+      updateReminderTitle,
+      updateReminderDueAt,
+      moveReminder,
       deleteReminder,
       addArea,
       setSettings,
@@ -337,6 +482,9 @@ export function ReminderProvider({ children }: { children: ReactNode }) {
       setFilters,
       setAreaFilter,
       refetchReminders,
+
+      authRequired,
+      setAuthRequired,
     ]
   );
 
