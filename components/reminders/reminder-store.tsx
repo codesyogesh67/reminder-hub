@@ -15,7 +15,8 @@ import type {
   Priority,
   Status,
   Reminder,
-  ReminderInput,
+  ReminderInput,  
+Frequency
 } from "@/lib/reminder";
 
 export type AreaFilter = "all" | Area;
