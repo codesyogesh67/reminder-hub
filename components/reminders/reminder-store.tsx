@@ -73,6 +73,14 @@ type ReminderStoreValue = {
   refetchReminders: () => Promise<void>;
 };
 
+const FREQUENCIES = ["once", "daily", "weekly", "monthly", "yearly"] as const;
+
+function toFrequency(v: unknown): Frequency {
+  return (FREQUENCIES as readonly string[]).includes(String(v))
+    ? (String(v) as Frequency)
+    : "once";
+}
+
 const ReminderStoreContext = createContext<ReminderStoreValue | null>(null);
 
 // helper to slugify area id (UI-only for now)
@@ -124,7 +132,7 @@ function normalizeReminder(r: any): Reminder {
     areaId: r.areaId ?? null,
     dueAt: typeof r.dueAt === "string" ? r.dueAt : new Date(r.dueAt).toISOString(),
     hasTime: Boolean(r.hasTime),
-    frequency: String(r.frequency),
+    frequency: toFrequency(r.frequency),
     priority: r.priority,
     status: r.status,
     createdAt: typeof r.createdAt === "string" ? r.createdAt : new Date(r.createdAt).toISOString(),
