@@ -149,8 +149,22 @@ export async function PATCH(req: Request, context: Ctx) {
     return NextResponse.json({ reminder: updated });
   } catch (err) {
     console.error("PATCH /api/reminders/[id] failed:", err);
+
+    const detail =
+      err instanceof Error
+        ? err.message
+        : typeof err === "string"
+        ? err
+        : (() => {
+            try {
+              return JSON.stringify(err);
+            } catch {
+              return String(err);
+            }
+          })();
+
     return NextResponse.json(
-      { error: "Internal Server Error", detail: String(err?.message ?? err) },
+      { error: "Internal Server Error", detail },
       { status: 500 }
     );
   }
