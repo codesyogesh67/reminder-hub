@@ -26,14 +26,17 @@ export async function DELETE(_req: Request, context: Ctx) {
     await prisma.reminder.delete({ where: { id } });
 
     return NextResponse.json({ ok: true });
-  } catch (err) {
+  } catch (err: unknown) {
     console.error("DELETE /api/reminders/[id] failed:", err);
+  
+    const detail =
+      err instanceof Error ? err.message : typeof err === "string" ? err : JSON.stringify(err);
+  
     return NextResponse.json(
-      { error: "Internal Server Error", detail: String(err?.message ?? err) },
+      { error: "Internal Server Error", detail },
       { status: 500 }
     );
   }
-}
 
 export async function PATCH(req: Request, context: Ctx) {
   try {
