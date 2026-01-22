@@ -82,6 +82,14 @@ function toFrequency(v: unknown): Frequency {
     : "once";
 }
 
+const STATUSES = ["pending", "done"] as const;
+
+function toStatus(v: unknown): Status {
+  return (STATUSES as readonly string[]).includes(String(v))
+    ? (String(v) as Status)
+    : "pending";
+}
+
 const ReminderStoreContext = createContext<ReminderStoreValue | null>(null);
 
 // helper to slugify area id (UI-only for now)
@@ -135,7 +143,7 @@ function normalizeReminder(r: any): Reminder {
     hasTime: Boolean(r.hasTime),
     frequency: toFrequency(r.frequency),
     priority: r.priority,
-    status: r.status,
+    status: toStatus(r.status),
     createdAt: typeof r.createdAt === "string" ? r.createdAt : new Date(r.createdAt).toISOString(),
     completedAt: r.completedAt ? (typeof r.completedAt === "string" ? r.completedAt : new Date(r.completedAt).toISOString()) : null,
   };
