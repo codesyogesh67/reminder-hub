@@ -16,7 +16,7 @@ import type {
   Status,
   Reminder,
   ReminderInput,  
-Frequency
+  Frequency,
 } from "@/lib/reminder";
 
 export type AreaFilter = "all" | Area;
@@ -323,7 +323,7 @@ export function ReminderProvider({ children }: { children: ReactNode }) {
         const nowIso = new Date().toISOString();
         const updated = prev.map((r) => {
           if (r.id !== id) return r;
-          const nextStatus = r.status === "done" ? "pending" : "done";
+          const nextStatus:Status = r.status === "done" ? "pending" : "done";
           return {
             ...r,
             status: nextStatus,
