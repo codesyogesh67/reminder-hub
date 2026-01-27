@@ -21,22 +21,36 @@ export async function GET() {
 
 export async function POST(req: Request) {
   const { userId } = await auth();
-  console.log("userid is here", userId);
-  if (!userId)
+
+  if (!userId) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
   const body = await req.json();
-  const label = String(body?.label ?? "").trim();
+  const label = String(body?.label ?? "")
+    .trim()
+    .toLowerCase();
 
   if (!label) {
     return NextResponse.json({ error: "Label required" }, { status: 400 });
   }
 
-  const area = await prisma.area.create({
-    data: { name: label, userId },
+  const area = await prisma.area.upsert({
+    where: {
+      userId_name: {
+        userId,
+        name: label,
+      },
+    },
+    update: {}, // nothing to update
+    create: {
+      userId,
+      name: label,
+    },
   });
 
   return NextResponse.json(
     { area: { id: area.id, label: area.name } },
-    { status: 201 }
+    { status: 200 } // 200 because it may already exist
   );
 }

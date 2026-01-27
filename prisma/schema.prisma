@@ -30,7 +30,7 @@ model Area {
   createdAt DateTime   @default(now())
   reminders Reminder[]
 
-  @@unique([userId, name])
+  @@unique([userId, name], name: "userId_name")
 }
 
 model Reminder {
