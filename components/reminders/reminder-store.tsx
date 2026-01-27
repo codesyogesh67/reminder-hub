@@ -424,23 +424,34 @@ export function ReminderProvider({ children }: { children: ReactNode }) {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ label: trimmed }),
     });
-
+  
     if (res.status === 401) {
       setAuthRequired(true);
       return "other";
     }
-
   
-    if (!res.ok) {
-      const text = await res.text().catch(() => "")
-      console.error("Failed to create area", res.status, text);
+    const data = await res.json().catch(() => null);
+  
+    if (!res.ok || !data?.area?.id) {
+      console.error("Failed to create area", res.status, data);
       return "other";
     }
   
-    const data = await res.json();
     const created = data.area as AreaDefinition;
   
-    setAreas((prev) => [...prev, created]);
+    // ✅ de-dupe by id (and also avoid same-name duplicates in UI)
+    setAreas((prev) => {
+      const nameKey = created.label.trim().toLowerCase();
+  
+      // if same id already exists, just return prev
+      if (prev.some((a) => a.id === created.id)) return prev;
+  
+      // if same name exists (case-insensitive), return prev
+      if (prev.some((a) => a.label.trim().toLowerCase() === nameKey)) return prev;
+  
+      return [...prev, created];
+    });
+  
     return created.id;
   }, []);
   
