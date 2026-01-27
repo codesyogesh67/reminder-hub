@@ -1,7 +1,7 @@
 // components/layout/navbar.tsx
 "use client";
 
-import { useEffect, useState, KeyboardEvent } from "react";
+import { useEffect, useState, KeyboardEvent, useMemo } from "react";
 import { Input } from "@/components/ui/input";
 import { NewReminderDialog } from "@/components/reminders/new-reminder-dialog";
 import { useReminderStore } from "@/components/reminders/reminder-store";
@@ -28,13 +28,22 @@ const VIEW_TITLE: Record<
 
 export default function Navbar() {
   const { view, filters, areas, addReminder } = useReminderStore();
+  const [quickActive, setQuickActive] = useState(false);
+
   const title = VIEW_TITLE[view];
 
   const [quickTitle, setQuickTitle] = useState("");
 
   // ✅ Fix hydration mismatch for Clerk components
   const [mounted, setMounted] = useState(false);
+
   useEffect(() => setMounted(true), []);
+
+  function collapseQuick() {
+    // keep open if user typed something
+    if (quickTitle.trim()) return;
+    setQuickActive(false);
+  }
 
   function handleQuickAddKeyDown(e: KeyboardEvent<HTMLInputElement>) {
     if (e.key !== "Enter") return;
@@ -89,7 +98,7 @@ export default function Navbar() {
 
   return (
     <header className="sticky top-0 z-10 border-b border-slate-800 bg-slate-950/80 px-4 py-3 backdrop-blur">
-      <div className="mx-auto flex max-w-5xl items-center justify-between gap-3">
+      <div className="relative mx-auto flex max-w-5xl items-center justify-between gap-3">
         {/* Left: mobile menu + titles */}
         <div className="flex flex-1 items-center gap-3">
           {/* Mobile: hamburger for sidebar */}
@@ -98,25 +107,65 @@ export default function Navbar() {
           </div>
 
           <div className="flex flex-col">
-            <span className="text-xs uppercase tracking-[0.15em] text-slate-400">
+            <span
+              className={[
+                "text-xs uppercase tracking-[0.15em] text-slate-400 transition-all duration-200",
+                quickActive
+                  ? "opacity-0 -translate-x-2 md:opacity-100 md:translate-x-0"
+                  : "opacity-100 translate-x-0",
+              ].join(" ")}
+            >
               {title.label}
             </span>
-            <h1 className="text-sm font-semibold tracking-tight text-slate-100 md:text-xl">
-              {title.subtitle}
-            </h1>
           </div>
         </div>
 
-        {/* Right: quick input + new reminder (input hidden on small) */}
-        <div className="flex flex-1 justify-end gap-2">
-          <Input
-            className="hidden w-full max-w-md rounded-xl border border-slate-700 bg-slate-900/70 px-3 py-2 text-sm outline-none ring-sky-500/40 placeholder:text-slate-500 focus-visible:ring-2 md:block"
-            placeholder="Quick add a reminder… (press Enter)"
-            value={quickTitle}
-            onChange={(e) => setQuickTitle(e.target.value)}
-            onKeyDown={handleQuickAddKeyDown}
-          />
-          <NewReminderDialog />
+        {/* Right: quick input + new reminder */}
+        <div className="flex flex-1 items-center justify-end gap-2">
+          {/* Desktop input */}
+          <div className="hidden md:block w-full max-w-md">
+            <Input
+              className="w-full rounded-xl border border-slate-700 bg-slate-900/70 px-3 py-2 text-sm outline-none ring-sky-500/40 placeholder:text-slate-500 focus-visible:ring-2"
+              placeholder="Quick add a reminder… (press Enter)"
+              value={quickTitle}
+              onChange={(e) => setQuickTitle(e.target.value)}
+              onKeyDown={handleQuickAddKeyDown}
+            />
+          </div>
+
+          {/* Mobile input: inline when collapsed, overlay when active */}
+          <div className="md:hidden">
+            <div
+              className={[
+                "transition-all duration-500 ease-out",
+                "top-1/2 -translate-y-1/2",
+                quickActive
+                  ? // expanded overlay: grows left, stops before New button
+                    "absolute left-14 right-[8.25rem] z-10"
+                  : // collapsed inline: sits near New button (no overlap with title)
+                    "absolute w-36 right-[8.25rem] z-10",
+              ].join(" ")}
+            >
+              <Input
+                className={[
+                  "h-9 w-full rounded-xl border border-slate-700 bg-slate-900/70 px-3 text-sm",
+                  "outline-none ring-sky-500/40 placeholder:text-slate-500 focus-visible:ring-2",
+                  "transition-all duration-200 ease-out",
+                ].join(" ")}
+                placeholder="Quick add…"
+                value={quickTitle}
+                onChange={(e) => setQuickTitle(e.target.value)}
+                onKeyDown={handleQuickAddKeyDown}
+                onFocus={() => setQuickActive(true)}
+                onBlur={collapseQuick}
+              />
+            </div>
+          </div>
+
+          {/* New button (always visible, never covered) */}
+          <div className="relative z-20">
+            <NewReminderDialog />
+          </div>
         </div>
 
         {/* ✅ Clerk: render only after mount to avoid hydration mismatch */}
