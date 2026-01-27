@@ -68,37 +68,7 @@ export default function HomePage() {
           </p>
         </div>
 
-        <div className="flex flex-wrap gap-2 text-xs">
-          {/* Status filter */}
-          <FilterPillGroup
-            label="Status"
-            options={[
-              { value: "pending", label: "Pending" },
-              { value: "done", label: "Done" },
-              { value: "snoozed", label: "Snoozed" },
-              { value: "all", label: "All" },
-            ]}
-            value={filters.status}
-            onChange={(value) =>
-              setFilters((f) => ({ ...f, status: value as StatusFilter }))
-            }
-          />
-
-          {/* Priority filter */}
-          <FilterPillGroup
-            label="Priority"
-            options={[
-              { value: "high", label: "High" },
-              { value: "medium", label: "Medium" },
-              { value: "low", label: "Low" },
-              { value: "all", label: "All" },
-            ]}
-            value={filters.priority}
-            onChange={(value) =>
-              setFilters((f) => ({ ...f, priority: value as PriorityFilter }))
-            }
-          />
-        </div>
+       
       </section>
 
       {/* Area sections */}
