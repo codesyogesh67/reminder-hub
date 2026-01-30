@@ -43,8 +43,8 @@ model Reminder {
 
   title     String
   note      String?
-  dueAt     DateTime
-  hasTime   Boolean  @default(false)
+  dueAt     DateTime?
+  hasTime   Boolean   @default(false)
   frequency String // once/daily/weekly/monthly/custom
   priority  String // low/medium/high
   status    String // pending/done/snoozed
