@@ -58,7 +58,7 @@ export function ReminderCard({ reminder }: { reminder: Reminder }) {
   useEffect(() => setTitleDraft(reminder.title), [reminder.title]);
 
   const openDueEditor = (forceTime?: boolean) => {
-    const due = new Date(reminder.dueAt);
+    const due = reminder.dueAt ? new Date(reminder.dueAt) : new Date();
     const now = new Date();
 
     // setForceTimeMode(Boolean(forceTime));
