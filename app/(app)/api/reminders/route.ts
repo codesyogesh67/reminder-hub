@@ -22,6 +22,7 @@ export async function GET() {
       areaId: r.areaId ?? null,
       areaLabel: r.area?.name ?? null, // ✅ optional
       dueAt: r.dueAt,
+      hasTime: r.hasTime,
       frequency: r.frequency,
       priority: r.priority,
       status: r.status,
@@ -80,14 +81,24 @@ export async function POST(req: Request) {
     finalAreaId = defaultArea.id;
   }
 
+  const rawDueAt = body.dueAt ?? null;
+  const dueAt =
+    rawDueAt == null || rawDueAt === "" ? null : new Date(String(rawDueAt));
+
+  if (dueAt && Number.isNaN(dueAt.getTime())) {
+    return NextResponse.json({ error: "Invalid dueAt" }, { status: 400 });
+  }
+
+  const hasTime = Boolean(body.hasTime) && dueAt !== null;
+
   const reminder = await prisma.reminder.create({
     data: {
       userId,
       title: body.title,
       note: body.note ?? null,
       areaId: finalAreaId, // ✅ always valid now
-      dueAt: new Date(body.dueAt),
-      hasTime: body.hasTime ?? false,
+      dueAt,
+      hasTime,
       frequency: body.frequency,
       priority: body.priority,
       status: body.status ?? "pending",

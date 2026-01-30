@@ -12,7 +12,7 @@ export type Reminder = {
   title: string;
   note: string;
   areaId: string | null; // ✅ normalized
-  dueAt: string;
+  dueAt: string | null;
   hasTime: boolean;
   frequency: Frequency;
   priority: Priority;
@@ -25,7 +25,7 @@ export type ReminderInput = {
   title: string;
   note?: string;
   areaId?: string | null; // ✅ normalized
-  dueAt: string;
+  dueAt?: string;
   frequency: Frequency;
   priority: Priority;
   status?: Status;

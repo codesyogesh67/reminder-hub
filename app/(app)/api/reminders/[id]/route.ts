@@ -85,17 +85,31 @@ export async function PATCH(req: Request, context: Ctx) {
 
     if (body && Object.prototype.hasOwnProperty.call(body, "dueAt")) {
       const raw = body.dueAt;
-      const date = new Date(raw);
 
-      if (Number.isNaN(date.getTime())) {
-        return NextResponse.json({ error: "Invalid dueAt" }, { status: 400 });
+      // ✅ allow null to mean "no date"
+      let dueAt: Date | null = null;
+
+      if (raw !== null && raw !== undefined && raw !== "") {
+        const d = new Date(String(raw));
+        if (Number.isNaN(d.getTime())) {
+          return NextResponse.json({ error: "Invalid dueAt" }, { status: 400 });
+        }
+        dueAt = d;
       }
+
+      // ✅ if no date, time must be false
+      const nextHasTime =
+        dueAt === null
+          ? false
+          : Object.prototype.hasOwnProperty.call(body, "hasTime")
+          ? Boolean(body.hasTime)
+          : existing.hasTime;
 
       const updated = await prisma.reminder.update({
         where: { id },
         data: {
-          dueAt: date,
-          hasTime: Boolean(body.hasTime),
+          dueAt,
+          hasTime: nextHasTime,
         },
       });
 
