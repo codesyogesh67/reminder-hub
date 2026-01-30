@@ -307,7 +307,7 @@ export function ReminderCard({ reminder }: { reminder: Reminder }) {
             {mounted ? (
               <button
                 type="button"
-                onClick={openDueEditor}
+                onClick={() => openDueEditor()}
                 className="inline-flex items-center rounded-full bg-slate-950/70 px-2 py-1 text-slate-300 transition hover:bg-slate-900"
                 title="Edit date/time"
               >
@@ -321,7 +321,7 @@ export function ReminderCard({ reminder }: { reminder: Reminder }) {
                 type="button"
                 onClick={() => {
                   setHasTimeLocal(false);
-                  openDueEditor();
+                  openDueEditor(true);
                 }}
                 className="inline-flex items-center rounded-full bg-slate-950/70 px-2 py-1 text-slate-300 transition hover:bg-slate-900"
                 title="Add a time"
