@@ -3,16 +3,8 @@
 
 import { useEffect, useMemo, useState } from "react";
 import type { Reminder, Priority } from "@/lib/reminder";
-import {
-  Clock,
-  RefreshCw,
-  Flag,
-  CheckCircle2,
-  Circle,
-  Trash2,
-} from "lucide-react";
+import { RefreshCw, Flag, CheckCircle2, Circle, Trash2 } from "lucide-react";
 import { useReminderStore } from "@/components/reminders/reminder-store";
-import { ArrowRightLeft } from "lucide-react";
 
 const PRIORITY_LABELS: Record<Priority, string> = {
   low: "Low",
@@ -29,7 +21,6 @@ function toISODateLocal(d: Date) {
 }
 
 function fromISODateLocal(iso: string) {
-  // iso: YYYY-MM-DD in user's local timezone
   const [y, m, day] = iso.split("-").map(Number);
   return new Date(y, m - 1, day);
 }
@@ -44,76 +35,35 @@ export function ReminderCard({ reminder }: { reminder: Reminder }) {
     updateReminderDueAt,
   } = useReminderStore();
 
-  // ✅ prevents SSR/CSR mismatch for locale formatting
   const [mounted, setMounted] = useState(false);
 
   const [moving, setMoving] = useState(false);
   const [editingTitle, setEditingTitle] = useState(false);
   const [titleDraft, setTitleDraft] = useState(reminder.title);
+
   const [editingDue, setEditingDue] = useState(false);
-  const [dueDraft, setDueDraft] = useState("");
-  const [dueError, setDueError] = useState<string | null>(null);
 
-  // date picker
-  type DateMode = "today" | "tomorrow" | "pick";
+  type DateMode = "none" | "today" | "tomorrow" | "pick";
   const [dateMode, setDateMode] = useState<DateMode>("today");
-  const [pickedDate, setPickedDate] = useState<string>(""); // YYYY-MM-DD
+  const [pickedDate, setPickedDate] = useState<string>("");
 
-  // time picker
   const [hasTimeLocal, setHasTimeLocal] = useState(false);
-  const [hour, setHour] = useState(9); // 1..12
-  const [minute, setMinute] = useState(0); // 0,5,10...
+  const [hour, setHour] = useState(9);
+  const [minute, setMinute] = useState(0);
   const [ampm, setAmpm] = useState<"am" | "pm">("am");
 
+  const [forceTimeMode, setForceTimeMode] = useState(false);
+
   useEffect(() => setMounted(true), []);
+  useEffect(() => setTitleDraft(reminder.title), [reminder.title]);
 
-  useEffect(() => {
-    setTitleDraft(reminder.title);
-  }, [reminder.title]);
-
-  useEffect(() => {
-    // default text shown when you open editor
-    // (shows "today" or "tomorrow" or "jan 22", plus time if hasTime)
-    const due = new Date(reminder.dueAt);
-
-    const dateText = (() => {
-      const now = new Date();
-      const startToday = new Date(
-        now.getFullYear(),
-        now.getMonth(),
-        now.getDate()
-      );
-      const startTomorrow = new Date(
-        now.getFullYear(),
-        now.getMonth(),
-        now.getDate() + 1
-      );
-      const startDayAfter = new Date(
-        now.getFullYear(),
-        now.getMonth(),
-        now.getDate() + 2
-      );
-
-      if (due >= startToday && due < startTomorrow) return "today";
-      if (due >= startTomorrow && due < startDayAfter) return "tomorrow";
-
-      return due
-        .toLocaleDateString(undefined, { month: "short", day: "numeric" })
-        .toLowerCase();
-    })();
-
-    const timeText = due
-      .toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" })
-      .toLowerCase();
-
-    setDueDraft(reminder.hasTime ? `${dateText} ${timeText}` : dateText);
-  }, [reminder.dueAt, reminder.hasTime]);
-
-  const openDueEditor = () => {
+  const openDueEditor = (forceTime?: boolean) => {
     const due = new Date(reminder.dueAt);
     const now = new Date();
 
-    // set date mode
+    // setForceTimeMode(Boolean(forceTime));
+    setHasTimeLocal(forceTime ? true : Boolean(reminder.hasTime));
+
     const startToday = new Date(
       now.getFullYear(),
       now.getMonth(),
@@ -141,9 +91,6 @@ export function ReminderCard({ reminder }: { reminder: Reminder }) {
       setPickedDate(toISODateLocal(due));
     }
 
-    // set time
-    setHasTimeLocal(Boolean(reminder.hasTime));
-
     let h = due.getHours();
     const m = due.getMinutes();
 
@@ -152,13 +99,23 @@ export function ReminderCard({ reminder }: { reminder: Reminder }) {
     if (h === 0) h = 12;
 
     setHour(h);
-    setMinute(m - (m % 5)); // snap to 5 min
+    setMinute(m - (m % 5));
     setAmpm(nextAmPm);
 
     setEditingDue(true);
   };
 
+  const closeDueEditor = () => {
+    setEditingDue(false);
+    setForceTimeMode(false);
+  };
+
   const saveDue = () => {
+    if (dateMode === "none") {
+      updateReminderDueAt(reminder.id, null, false);
+      closeDueEditor();
+      return;
+    }
     const now = new Date();
     let base: Date;
 
@@ -179,15 +136,21 @@ export function ReminderCard({ reminder }: { reminder: Reminder }) {
       if (ampm === "pm") h24 += 12;
       final.setHours(h24, minute, 0, 0);
     } else {
-      // date-only: use noon (stable)
       final.setHours(12, 0, 0, 0);
     }
 
     updateReminderDueAt(reminder.id, final.toISOString(), hasTimeLocal);
-    setEditingDue(false);
+
+    closeDueEditor();
   };
 
-  const { timeLabel, dateLabel, dayLabel, isToday } = useMemo(() => {
+  const { timeLabel, dayLabel } = useMemo(() => {
+    if (!reminder.dueAt) {
+      return {
+        timeLabel: null,
+        dayLabel: "+ Add time",
+      };
+    }
     const due = new Date(reminder.dueAt);
 
     const now = new Date();
@@ -218,30 +181,23 @@ export function ReminderCard({ reminder }: { reminder: Reminder }) {
     });
 
     const isToday = due >= startOfToday && due < startOfTomorrow;
-
     const isTomorrow = due >= startOfTomorrow && due < startOfDayAfterTomorrow;
-
-    const dayLabel = isToday ? "Today" : isTomorrow ? "Tomorrow" : date;
 
     return {
       timeLabel: time,
-      dateLabel: date,
-      dayLabel,
-      isToday,
+      dayLabel: isToday ? "Today" : isTomorrow ? "Tomorrow" : date,
     };
   }, [reminder.dueAt]);
 
   const isOverdue = useMemo(() => {
+    if (!reminder.dueAt) return false;
     if (reminder.status === "done") return false;
 
     const now = Date.now();
     const due = new Date(reminder.dueAt);
 
-    if (reminder.hasTime) {
-      return due.getTime() < now;
-    }
+    if (reminder.hasTime) return due.getTime() < now;
 
-    // date-only reminders become overdue after end of the day
     const end = new Date(due);
     end.setHours(23, 59, 59, 999);
     return end.getTime() < now;
@@ -272,13 +228,12 @@ export function ReminderCard({ reminder }: { reminder: Reminder }) {
   return (
     <div
       className={[
-        "group flex h-full flex-col overflow-visible rounded-2xl border p-3.5 text-sm shadow-sm shadow-slate-950/60 transition hover:-translate-y-0.5 hover:bg-slate-900 hover:shadow-lg hover:shadow-sky-950/40",
+        "group flex h-auto self-start flex-col overflow-visible rounded-2xl border p-3.5 text-sm shadow-sm shadow-slate-950/60 transition hover:-translate-y-0.5 hover:bg-slate-900 hover:shadow-lg hover:shadow-sky-950/40",
         isOverdue
           ? "border-rose-500/60 bg-rose-950/15 hover:border-rose-400/70"
           : "border-slate-800/80 bg-slate-900/70 hover:border-sky-500/60",
       ].join(" ")}
     >
-      {" "}
       <div className="mb-2 flex items-start gap-2">
         <button
           type="button"
@@ -289,8 +244,6 @@ export function ReminderCard({ reminder }: { reminder: Reminder }) {
         </button>
 
         <div className="flex-1">
-          {/* <p className={titleClasses}>{reminder.title}</p> */}
-
           {!editingTitle ? (
             <button
               type="button"
@@ -317,23 +270,17 @@ export function ReminderCard({ reminder }: { reminder: Reminder }) {
                 }
               }}
               onBlur={() => {
-                // choose one behavior:
-                // (A) save on blur:
                 updateReminderTitle(reminder.id, titleDraft);
                 setEditingTitle(false);
-
-                // (B) or cancel on blur (more conservative):
-                // setTitleDraft(reminder.title);
-                // setEditingTitle(false);
               }}
             />
           )}
 
-          {reminder.note && (
+          {reminder.note ? (
             <p className="mt-1 line-clamp-2 text-xs text-slate-400">
               {reminder.note}
             </p>
-          )}
+          ) : null}
         </div>
 
         <button
@@ -345,136 +292,51 @@ export function ReminderCard({ reminder }: { reminder: Reminder }) {
           <Trash2 className="h-4 w-4" />
         </button>
       </div>
-      {/* <div className="overflow-hidden mt-auto flex items-center justify-between pt-2 text-[11px] text-slate-400"> */}
+
+      {/* Footer */}
       <div
         className={[
           "mt-auto pt-2 text-[11px] text-slate-400",
           editingDue
-            ? "overflow-visible flex flex-wrap items-start gap-2"
+            ? "overflow-hidden flex flex-col gap-2"
             : "overflow-hidden flex items-center justify-between",
         ].join(" ")}
       >
-        {/* <div className="flex items-center gap-2"> */}
-        <div
-          className={[
-            "flex items-center gap-2",
-            editingDue ? "flex-wrap" : "flex-nowrap",
-          ].join(" ")}
-        >
-          {!editingDue ? (
-            <button
-              type="button"
-              onClick={openDueEditor}
-              className="inline-flex items-center rounded-full bg-slate-950/70 px-2 py-1 text-slate-300 transition hover:bg-slate-900"
-              title="Edit date/time"
-            >
-              <span>{mounted ? dayLabel : "—"}</span>
-              {reminder.hasTime ? (
-                <span className="ml-1 text-slate-400">
-                  • {mounted ? timeLabel : "--:--"}
-                </span>
-              ) : null}
-            </button>
-          ) : (
-            <div className="flex items-center gap-2">
-              {/* Date select */}
-              <select
-                className="rounded-xl border border-slate-800 bg-slate-950/70 px-2 py-1 text-[11px] text-slate-200 outline-none"
-                value={dateMode}
-                onChange={(e) => setDateMode(e.target.value as any)}
-              >
-                <option value="today">Today</option>
-                <option value="tomorrow">Tomorrow</option>
-                <option value="pick">Pick date…</option>
-              </select>
-
-              {/* Calendar (only when pick) */}
-              {dateMode === "pick" ? (
-                <input
-                  type="date"
-                  value={pickedDate}
-                  onChange={(e) => setPickedDate(e.target.value)}
-                  className="rounded-xl border border-slate-800 bg-slate-950/70 px-2 py-1 text-[11px] text-slate-200 outline-none"
-                />
-              ) : null}
-
-              {/* Time toggle */}
-              <label className="inline-flex items-center gap-1 text-[11px] text-slate-300">
-                <input
-                  type="checkbox"
-                  checked={hasTimeLocal}
-                  onChange={(e) => setHasTimeLocal(e.target.checked)}
-                />
-                Time
-              </label>
-
-              {/* Time selects */}
-              {hasTimeLocal ? (
-                <div className="flex items-center gap-1">
-                  <select
-                    className="rounded-xl border border-slate-800 bg-slate-950/70 px-2 py-1 text-[11px] text-slate-200 outline-none"
-                    value={hour}
-                    onChange={(e) => setHour(Number(e.target.value))}
-                  >
-                    {Array.from({ length: 12 }, (_, i) => i + 1).map((h) => (
-                      <option key={h} value={h}>
-                        {h}
-                      </option>
-                    ))}
-                  </select>
-
-                  <span className="text-slate-500">:</span>
-
-                  <select
-                    className="rounded-xl border border-slate-800 bg-slate-950/70 px-2 py-1 text-[11px] text-slate-200 outline-none"
-                    value={minute}
-                    onChange={(e) => setMinute(Number(e.target.value))}
-                  >
-                    {[0, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55].map((m) => (
-                      <option key={m} value={m}>
-                        {pad2(m)}
-                      </option>
-                    ))}
-                  </select>
-
-                  <select
-                    className="rounded-xl border border-slate-800 bg-slate-950/70 px-2 py-1 text-[11px] text-slate-200 outline-none"
-                    value={ampm}
-                    onChange={(e) => setAmpm(e.target.value as any)}
-                  >
-                    <option value="am">AM</option>
-                    <option value="pm">PM</option>
-                  </select>
-                </div>
-              ) : null}
-
-              {/* Actions */}
-              <button
-                type="button"
-                onClick={saveDue}
-                className="rounded-xl border border-slate-800 bg-slate-950/70 px-2 py-1 text-[11px] text-slate-200 hover:border-sky-500/60"
-              >
-                Save
-              </button>
-
-              <button
-                type="button"
-                onClick={() => setEditingDue(false)}
-                className="rounded-xl border border-transparent px-2 py-1 text-[11px] text-slate-500 hover:text-slate-200"
-              >
-                Cancel
-              </button>
-            </div>
-          )}
-
-          {isOverdue && (
-            <span className="inline-flex items-center rounded-full border border-rose-500/40 bg-rose-950/30 px-2 py-1 text-rose-200">
-              Overdue
-            </span>
-          )}
-
+        {!editingDue ? (
           <div className="flex items-center gap-2">
-            <div className="flex items-center bg-black">
+            {mounted ? (
+              <button
+                type="button"
+                onClick={openDueEditor}
+                className="inline-flex items-center rounded-full bg-slate-950/70 px-2 py-1 text-slate-300 transition hover:bg-slate-900"
+                title="Edit date/time"
+              >
+                <span>{dayLabel}</span>
+                <span className="ml-1 text-slate-400">
+                  {reminder.hasTime ? timeLabel : null}
+                </span>
+              </button>
+            ) : (
+              <button
+                type="button"
+                onClick={() => {
+                  setHasTimeLocal(false);
+                  openDueEditor();
+                }}
+                className="inline-flex items-center rounded-full bg-slate-950/70 px-2 py-1 text-slate-300 transition hover:bg-slate-900"
+                title="Add a time"
+              >
+                + Add time
+              </button>
+            )}
+
+            {isOverdue ? (
+              <span className="inline-flex items-center rounded-full border border-rose-500/40 bg-rose-950/30 px-2 py-1 text-rose-200">
+                Overdue
+              </span>
+            ) : null}
+
+            <div className="relative flex items-center">
               {!moving ? (
                 <button
                   onClick={() => setMoving(true)}
@@ -503,152 +365,137 @@ export function ReminderCard({ reminder }: { reminder: Reminder }) {
               )}
             </div>
           </div>
-        </div>
+        ) : (
+          // ✅ Extended editor UI (wraps into new lines)
+          <div className="flex w-full flex-col gap-2">
+            {/* Row 1: Date */}
+            <div className="flex w-full flex-wrap items-center gap-2">
+              <select
+                className="rounded-xl border border-slate-800 bg-slate-950/70 px-2 py-1 text-[11px] text-slate-200 outline-none"
+                value={dateMode}
+                onChange={(e) => setDateMode(e.target.value as any)}
+              >
+                <option value="none">No date</option>
+                <option value="today">Today</option>
+                <option value="tomorrow">Tomorrow</option>
+                <option value="pick">Pick date…</option>
+              </select>
 
-        <div className="flex items-center gap-1.5">
-          <span className={`inline-flex items-center gap-1 ${priorityColor}`}>
-            <Flag className="h-3 w-3" />
-            <span className="capitalize">
-              {PRIORITY_LABELS[reminder.priority]}
+              {dateMode === "pick" ? (
+                <input
+                  type="date"
+                  value={pickedDate}
+                  onChange={(e) => setPickedDate(e.target.value)}
+                  className="rounded-xl border border-slate-800 bg-slate-950/70 px-2 py-1 text-[11px] text-slate-200 outline-none"
+                />
+              ) : null}
+            </div>
+            {dateMode !== "none" && (
+              <div>
+                <label className="inline-flex items-center gap-1 text-[11px] text-slate-300">
+                  <input
+                    type="checkbox"
+                    checked={hasTimeLocal}
+                    onChange={(e) => {
+                      if (forceTimeMode) return; // keep on for Add Time flow
+                      setHasTimeLocal(e.target.checked);
+                    }}
+                  />
+                  Time
+                </label>
+                {hasTimeLocal ? (
+                  <div className="flex flex-wrap items-center gap-1">
+                    <select
+                      className="rounded-xl border border-slate-800 bg-slate-950/70 px-2 py-1 text-[11px] text-slate-200 outline-none"
+                      value={hour}
+                      onChange={(e) => setHour(Number(e.target.value))}
+                    >
+                      {Array.from({ length: 12 }, (_, i) => i + 1).map((h) => (
+                        <option key={h} value={h}>
+                          {h}
+                        </option>
+                      ))}
+                    </select>
+
+                    <span className="text-slate-500">:</span>
+                    <select
+                      className="rounded-xl border border-slate-800 bg-slate-950/70 px-2 py-1 text-[11px] text-slate-200 outline-none"
+                      value={minute}
+                      onChange={(e) => setMinute(Number(e.target.value))}
+                    >
+                      {[0, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55].map(
+                        (m) => (
+                          <option key={m} value={m}>
+                            {pad2(m)}
+                          </option>
+                        )
+                      )}
+                    </select>
+
+                    <select
+                      className="rounded-xl border border-slate-800 bg-slate-950/70 px-2 py-1 text-[11px] text-slate-200 outline-none"
+                      value={ampm}
+                      onChange={(e) => setAmpm(e.target.value as any)}
+                    >
+                      <option value="am">AM</option>
+                      <option value="pm">PM</option>
+                    </select>
+                  </div>
+                ) : null}
+              </div>
+            )}
+
+            {/* Row 2: Time */}
+
+            <div className="flex w-full flex-wrap items-center gap-2">
+              {/* <label className="inline-flex items-center gap-1 text-[11px] text-slate-300">
+                <input
+                  type="checkbox"
+                  checked={hasTimeLocal}
+                  onChange={(e) => {
+                    if (forceTimeMode) return; // keep on for Add Time flow
+                    setHasTimeLocal(e.target.checked);
+                  }}
+                />
+                Time
+              </label> */}
+            </div>
+
+            {/* Row 3: Actions */}
+            <div className="flex w-full items-center gap-2">
+              <button
+                type="button"
+                onClick={saveDue}
+                className="rounded-xl border border-slate-800 bg-slate-950/70 px-2 py-1 text-[11px] text-slate-200 hover:border-sky-500/60"
+              >
+                Save
+              </button>
+              <button
+                type="button"
+                onClick={closeDueEditor}
+                className="rounded-xl border border-transparent px-2 py-1 text-[11px] text-slate-500 hover:text-slate-200"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        )}
+
+        {!editingDue ? (
+          <div className="flex items-center gap-1.5">
+            <span className={`inline-flex items-center gap-1 ${priorityColor}`}>
+              <Flag className="h-3 w-3" />
+              <span className="capitalize">
+                {PRIORITY_LABELS[reminder.priority]}
+              </span>
             </span>
-          </span>
-          <span className="inline-flex items-center gap-1 text-slate-400">
-            <RefreshCw className="h-3 w-3" />
-            <span className="capitalize">{reminder.frequency}</span>
-          </span>
-        </div>
+            <span className="inline-flex items-center gap-1 text-slate-400">
+              <RefreshCw className="h-3 w-3" />
+              <span className="capitalize">{reminder.frequency}</span>
+            </span>
+          </div>
+        ) : null}
       </div>
     </div>
   );
-}
-
-function parseDueInput(
-  input: string,
-  currentDueAtIso: string
-): { dueAtIso: string; hasTime: boolean } | null {
-  const text = input.trim().toLowerCase();
-  if (!text) return null;
-
-  const now = new Date();
-  let baseDate = new Date(now.getFullYear(), now.getMonth(), now.getDate()); // start of today
-  let hasDate = false;
-
-  // --- date parsing ---
-  // keywords
-  if (text.includes("today")) {
-    baseDate = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-    hasDate = true;
-  } else if (text.includes("tomorrow")) {
-    baseDate = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
-    hasDate = true;
-  } else {
-    // ISO date like 2026-01-20
-    const isoDateMatch = text.match(/\b(\d{4})-(\d{2})-(\d{2})\b/);
-    if (isoDateMatch) {
-      const y = Number(isoDateMatch[1]);
-      const m = Number(isoDateMatch[2]) - 1;
-      const d = Number(isoDateMatch[3]);
-      baseDate = new Date(y, m, d);
-      hasDate = true;
-    } else {
-      // Month name + day, e.g. "jan 25" or "january 25"
-      const mdMatch = text.match(
-        /\b(jan|january|feb|february|mar|march|apr|april|may|jun|june|jul|july|aug|august|sep|sept|september|oct|october|nov|november|dec|december)\s+(\d{1,2})\b/
-      );
-      if (mdMatch) {
-        const monthMap: Record<string, number> = {
-          jan: 0,
-          january: 0,
-          feb: 1,
-          february: 1,
-          mar: 2,
-          march: 2,
-          apr: 3,
-          april: 3,
-          may: 4,
-          jun: 5,
-          june: 5,
-          jul: 6,
-          july: 6,
-          aug: 7,
-          august: 7,
-          sep: 8,
-          sept: 8,
-          september: 8,
-          oct: 9,
-          october: 9,
-          nov: 10,
-          november: 10,
-          dec: 11,
-          december: 11,
-        };
-        const month = monthMap[mdMatch[1]];
-        const day = Number(mdMatch[2]);
-
-        // choose this year, but if already passed, roll to next year
-        const candidate = new Date(now.getFullYear(), month, day);
-        const startToday = new Date(
-          now.getFullYear(),
-          now.getMonth(),
-          now.getDate()
-        );
-        baseDate =
-          candidate < startToday
-            ? new Date(now.getFullYear() + 1, month, day)
-            : candidate;
-
-        hasDate = true;
-      }
-    }
-  }
-
-  // If user didn't specify any date at all, keep the existing reminder date (so they can type only "6pm")
-  if (!hasDate) {
-    const existing = new Date(currentDueAtIso);
-    baseDate = new Date(
-      existing.getFullYear(),
-      existing.getMonth(),
-      existing.getDate()
-    );
-  }
-
-  // --- time parsing ---
-  // formats: 6pm, 6:30pm, 18:00, 9, 9:15
-  let hasTime = false;
-  let hours = 9;
-  let minutes = 0;
-
-  const timeMatch = text.match(/\b(\d{1,2})(?::(\d{2}))?\s*(am|pm)?\b/);
-  if (timeMatch) {
-    let h = Number(timeMatch[1]);
-    const mm = timeMatch[2] ? Number(timeMatch[2]) : 0;
-    const ap = timeMatch[3];
-
-    if (ap) {
-      if (ap === "pm" && h < 12) h += 12;
-      if (ap === "am" && h === 12) h = 0;
-      hasTime = true;
-    } else {
-      // if they used 24h like 18:00 or provided minutes, treat as time
-      if (h > 23 || mm > 59) return null;
-      if (timeMatch[2] || h > 12) hasTime = true;
-      // if they typed just "9" with no am/pm, assume it's a time ONLY if they also typed "today/tomorrow/date"
-      if (!hasTime && hasDate) hasTime = true;
-    }
-
-    if (h > 23 || mm > 59) return null;
-    hours = h;
-    minutes = mm;
-  }
-
-  // build final dueAt
-  const due = new Date(baseDate);
-  if (hasTime) {
-    due.setHours(hours, minutes, 0, 0);
-  } else {
-    // date-only: set a neutral time (noon helps avoid timezone edge cases)
-    due.setHours(12, 0, 0, 0);
-  }
-
-  return { dueAtIso: due.toISOString(), hasTime };
 }

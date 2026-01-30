@@ -134,13 +134,20 @@ function normalizeReminder(r: any): Reminder {
     throw new Error("normalizeReminder: invalid reminder payload");
   }
 
+  const dueAt =
+  r.dueAt == null
+    ? null
+    : typeof r.dueAt === "string"
+      ? r.dueAt
+      : new Date(r.dueAt).toISOString();
+
   return {
     id: String(r.id),
     title: String(r.title),
     note: r.note ?? "",
     areaId: r.areaId ?? null,
-    dueAt: typeof r.dueAt === "string" ? r.dueAt : new Date(r.dueAt).toISOString(),
-    hasTime: Boolean(r.hasTime),
+    dueAt,
+    hasTime: Boolean(r.hasTime) && dueAt !== null,
     frequency: toFrequency(r.frequency),
     priority: r.priority,
     status: toStatus(r.status),
@@ -309,6 +316,7 @@ export function ReminderProvider({ children }: { children: ReactNode }) {
       const data = await res.json().catch(() => null);
       if (data?.reminder) {
         const updated = normalizeReminder(data.reminder);
+        console.log("updated",updated)
         setReminders((prev) => prev.map((r) => (r.id === id ? updated : r)));
       }
     },
