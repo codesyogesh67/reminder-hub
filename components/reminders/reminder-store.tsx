@@ -56,7 +56,7 @@ type ReminderStoreValue = {
   addArea: (label: string) => Promise<Area>; // returns new area id (UI-only for now)
   moveReminder: (id: string, areaId: string | null) => Promise<void>;
   updateReminderTitle: (id: string, title: string) => Promise<void>;
-  updateReminderDueAt: (id: string, dueAt: string, hasTime: boolean) => Promise<void>;
+  updateReminderDueAt: (id: string, dueAt: string | null, hasTime: boolean) => Promise<void>;
 
 
   // settings
