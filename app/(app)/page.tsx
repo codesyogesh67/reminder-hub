@@ -18,7 +18,10 @@ export default function HomePage() {
     const todayStr = now.toDateString();
 
     return reminders.filter((r) => {
+      if(!r.dueAt) return false;
       const due = new Date(r.dueAt);
+      if(Number.isNaN(due.getTime())) return false;
+
       const dueStr = due.toDateString();
 
       // View logic
